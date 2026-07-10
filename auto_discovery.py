@@ -37,3 +37,5 @@ try:
 
 except Exception as e:
     print(f"\nConnection failed: {e}")
+
+print("hello")
