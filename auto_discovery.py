@@ -1,3 +1,5 @@
+import json
+
 from netmiko import ConnectHandler
 from netmiko.ssh_autodetect import SSHDetect
 
@@ -37,7 +39,7 @@ def detect_os():
 
 
 def send_command(os_type, commands: list):
-    output_dicts = []
+    output_dicts = {}
     net_connect = None
     if os_type is None:
         print("Operating Sytem not detected aborting...")
@@ -55,17 +57,18 @@ def send_command(os_type, commands: list):
                 command, read_timeout=30, use_textfsm=True
             )
             if isinstance(output, list):
-                print(f"\n--- {command} (Parsed) ---")
-                output_dicts += output
-                print(f"{command} parsed and added to output data!")
+                print(f"--- {command} (Parsed) ---")
+                output_dicts[command] = output
                 # for row in output:
                 #     print(row)
             else:
-                print(f"\n--- {command} (Raw) ---")
+                print(f"--- {command} (Raw) ---")
                 # if text is not parsed it will just add it as an item so we know its not added
-                output_dicts.append(
-                    {"COMMAND NOT PARSED": command, "raw_output": output}
-                )
+                output_dicts[command] = {
+                    "COMMAND NOT PARSED": command,
+                    "raw_output": output,
+                }
+
                 print(f"{command} not parsed added to output as COMMAND NOT PARSED")
 
         except Exception as e:
@@ -83,6 +86,10 @@ detected_os = "cisco_ios"
 commands = ["show ip interface brief", "show interface status"]
 output = send_command(detected_os, commands)
 
-for o in output:
-    for key, value in o.items():
-        print(f"[{key}: {value}")
+if output:
+    print("\n--- Final Output (JSON) ---")
+    # json.dumps converts the list of dictionaries to a JSON formatted string
+    # indent=4 makes it human-readable with 4 spaces of indentation
+    print(json.dumps(output, indent=4))
+else:
+    print("No output generated.")
