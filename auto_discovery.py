@@ -83,21 +83,8 @@ def send_command(os_type, commands: list):
     return outputs_dict
 
 
-def parse_connected_devices(raw_data):
-    """
-    Correlates ARP, MAC Table, and LLDP data.
-    Includes fallback parsing if TextFSM fails.
-    """
-    connected_devices = []
-    # -----------------------------------------------------------------
-    # 1. Build Lookup Dictionaries
-    # Build dict to look up MAC -> IP (from show ip ARP)
-    # ----------------------------------------------------------------
+def create_arp_table(arp_data):
     arp_table = {}
-    arp_data = raw_data.get("show ip arp", [])
-    print("DEBUG: arp data printout")
-    print(f"{arp_data}")
-
     for entry in arp_data:
         mac = entry.get("mac_address", "")
         mac = str(mac).replace(".", "").replace(":", "").upper()
@@ -109,14 +96,11 @@ def parse_connected_devices(raw_data):
 
         if mac and ip != "Incomplete":
             print(f"DEBUG: ARP Entry - MAC: {mac}, IP: {ip}")
+            return arp_table
 
-    print(f"DEBUG: arp table right after creation -> {arp_table}")
-    # ----------------------------------------------------------------
-    # Building MAC -> Interface (from MAC Address Table)
-    # ----------------------------------------------------------------
+
+def create_mac_table(mac_data):
     mac_table = {}
-    mac_data = raw_data.get("show mac address-table dynamic", [])
-
     for entry in mac_data:
         mac = entry.get("destination_address", "")
         if isinstance(mac, list):
@@ -136,11 +120,11 @@ def parse_connected_devices(raw_data):
                 if p not in mac_table[mac]:
                     mac_table[mac].append(p)
             print(f"DEBUG: MAC Table Entry - MAC: {mac}, Ports: {ports_to_add}")
+    return mac_table
 
-    # 2. Process LLDP Neighbors
-    lldp_data = raw_data.get("show lldp neighbors detail", [])
-    lldp_devices = {}
 
+def create_lldp_table(lldp_data):
+    lldp_table = {}
     if isinstance(lldp_data, list):
         for neighbor in lldp_data:
             remote_host = neighbor.get("neighbor", "")
@@ -153,19 +137,54 @@ def parse_connected_devices(raw_data):
             local_port = str(local_port)
 
             if remote_host and local_port:
-                lldp_devices[local_port] = {
+                lldp_table[local_port] = {
                     "hostname": remote_host,
                     "is_network_device": True,
                 }
+    return lldp_table
 
+
+def parse_connected_devices(raw_data):
+    """
+    Correlates ARP, MAC Table, and LLDP data.
+    Will not work if TextFSM fails
+    """
+    connected_devices = []
+
+    # -----------------------------------------------------------------
+    # 1. Build Lookup Dictionaries
+    # Build dict to look up MAC -> IP dict (from show ip ARP)
+    # ----------------------------------------------------------------
+
+    arp_data = raw_data.get("show ip arp", [])
+    # print("DEBUG: arp data printout")
+    # print(f"{arp_data}")
+    arp_table = create_arp_table(arp_data)
+
+    # ----------------------------------------------------------------
+    # Building MAC -> Interface dict (from MAC Address Table)
+    # ----------------------------------------------------------------
+
+    mac_data = raw_data.get("show mac address-table dynamic", [])
+    mac_table = create_mac_table(mac_data)
+
+    # -----------------------------------------------------------------------
+    # 2. Process LLDP Neighbors
+    # ------------------------------------------------------------------------
+
+    lldp_data = raw_data.get("show lldp neighbors detail", [])
+    lldp_table = create_lldp_table(lldp_data)
+
+    # ------------------------------------------------------------------------
     # 3. Correlate all look up tables to build Final List
+    # ------------------------------------------------------------------------
     #
-    print(
-        f"\nDEBUG: ARP Table Size: {len(arp_table)}, MAC Table Size: {len(mac_table)}"
-    )
+    # print(
+    #     f"\nDEBUG: ARP Table Size: {len(arp_table)}, MAC Table Size: {len(mac_table)}"
+    # )
 
     for mac, ports in mac_table.items():
-        print(f"DEBUG:ARP TABLE right before grabbing it {arp_table}")
+        # print(f"DEBUG:ARP TABLE right before grabbing it {arp_table}")
         ip_address = arp_table.get(mac, None)
 
         if ip_address is None:
@@ -181,8 +200,8 @@ def parse_connected_devices(raw_data):
                 "source": "MAC_ARP_CORRELATION",
             }
 
-            if port in lldp_devices:
-                device_info["hostname"] = lldp_devices[port]["hostname"]
+            if port in lldp_table:
+                device_info["hostname"] = lldp_table[port]["hostname"]
                 device_info["is_network_device"] = True
                 device_info["source"] = "LLDP"
 
