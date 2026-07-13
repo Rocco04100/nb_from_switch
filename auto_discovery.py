@@ -1,5 +1,3 @@
-# Serial port /dev/ttyUSB0
-
 from netmiko import ConnectHandler
 from netmiko.ssh_autodetect import SSHDetect
 
@@ -39,7 +37,7 @@ def detect_os():
 
 
 def send_command(os_type, commands: list):
-
+    output_dicts = []
     net_connect = None
     if os_type is None:
         print("Operating Sytem not detected aborting...")
@@ -58,14 +56,18 @@ def send_command(os_type, commands: list):
             )
             if isinstance(output, list):
                 print(f"\n--- {command} (Parsed) ---")
-                for row in output:
-                    print(row)
+                output_dicts += output
+                print(f"{command} parsed and added to output data!")
+                # for row in output:
+                #     print(row)
             else:
                 print(f"\n--- {command} (Raw) ---")
-                print(output)
+                # if text is not parsed it will just add it as an item so we know its not added
+                output_dicts.append(
+                    {"COMMAND NOT PARSED": command, "raw_output": output}
+                )
+                print(f"{command} not parsed added to output as COMMAND NOT PARSED")
 
-        # except (NetmikoTimeoutException, NetmikoAuthenticationException) as e:
-        #     print(f"❌ Connection Error: {e}")
         except Exception as e:
             print(
                 f"Command Error(usually wrong output due to syntax error in command): {e}"
@@ -74,8 +76,13 @@ def send_command(os_type, commands: list):
     if net_connect:
         net_connect.disconnect()
         print("\nConnection closed.")
+    return output_dicts
 
 
 detected_os = "cisco_ios"
 commands = ["show ip interface brief", "show interface status"]
-send_command(detected_os, commands)
+output = send_command(detected_os, commands)
+
+for o in output:
+    for key, value in o.items():
+        print(f"[{key}: {value}")
