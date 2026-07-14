@@ -1,26 +1,15 @@
-import json
-
-from netmiko.ssh_autodetect import SSHDetect
+import logging
 
 import collector
 import parse
 
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s - %(message)s",
+)
 
-def detect_os():
-    try:
-        guesser = SSHDetect(**switch)
-        best_match = guesser.autodetect()
-
-        if not best_match:
-            raise Exception("Auto-detection failed. Could not identify device OS.")
-
-        print(f"✅ Detected OS: {best_match}")
-        return best_match
-
-    except Exception as e:
-        print(f"\nConnection failed: {e}")
-    return None
-
+logging.getLogger("netmiko").setLevel(logging.WARN)
+logging.getLogger("paramiko").setLevel(logging.WARN)
 
 # ---------------------------------------------------------------------
 # EXECUTING FUNCTIONS
@@ -35,7 +24,7 @@ commands = [
     "show lldp neighbors detail",  # Identifies Network Devices
 ]
 switch = {
-    "device_type": "cisco_ios",
+    "device_type": "generic",
     "host": "192.168.1.2",
     "username": "admin",
     "password": "password1",

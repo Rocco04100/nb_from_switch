@@ -1,4 +1,5 @@
 import json
+import logging
 
 
 def create_arp_table(arp_data):
@@ -60,9 +61,12 @@ def create_lldp_table(lldp_data):
 
 def connected_devices(raw_data):
     """
-    Correlates ARP, MAC Table, and LLDP data.
+    #######################################################################################
+    Correlates ARP, MAC Table, and LLDP data to form json for nb import
     Will not work if TextFSM fails
+    #######################################################################################
     """
+
     connected_devices = []
 
     # -----------------------------------------------------------------
@@ -126,13 +130,33 @@ def connected_devices(raw_data):
         "10.45": "Building 45",
         # "10.51": "Building 51", -> only has acs in netbox
         #
+        # "10.52": "Building 52", -> only has acs in netbox
+        "10.53": "Building 53",
+        "10.55": "Building 55",
+        "10.58": "Building 58",  # mostly acs in netbox
+        "10.60": "Building 60",
+        "10.61": "Building 61",
+        "10.66": "Building 66",
+        "10.72": "Builidng 72",
+        "10.75": "Building 75",
+        "10.76": "Building 76",
+        "10.78": "Building 78",
+        "10.79": "Building 79",
+        "10.81": "Builidng 81",
+        "10.91": "Building 91",
+        "10.96": "Building 96",
+        "10.100": "Building 100",
+        "10.129": "Conley Shipyard",
+        # "10.128": "FP East", I got no idea if there are different subnets
+        # "10.128": "FP West"
+        # "10.135": "Framingham Garage", this is parking network not moa_site_table
     }
 
     for mac, ports in mac_table.items():
         ip_address = arp_table.get(mac, None)
 
         if ip_address is None:
-            print(f"IMPORTANT: MAC {mac} found in MAC table but NOT in ARP table")
+            logging.warn(f"MAC {mac} found in MAC table but NOT in ARP table")
 
         for port in ports:
             device_info = {
@@ -154,7 +178,7 @@ def connected_devices(raw_data):
     if connected_devices:
         with open("output/connected_devices.json", "w") as f:
             json.dump(connected_devices, f, indent=4)
-        print(
+        logging.info(
             "\nConnected Devices parsing successful! Data saved to connected_devices.json"
         )
     return connected_devices

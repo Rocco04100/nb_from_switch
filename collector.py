@@ -1,6 +1,9 @@
 import json
+import logging
 
 from netmiko import ConnectHandler
+
+import detect
 
 
 def get_data(switch, commands: list):
@@ -12,14 +15,18 @@ def get_data(switch, commands: list):
     - Will abort if the operating system is not properly detected
     ###############################################################
     """
-    print(f"Connecting to {switch['host']}...")
-    outputs_dict = {}
-    net_connect = None
-    if switch["device_type"] is None:
-        print("Operating Sytem not detected aborting...")
-        return
 
+    net_connect = None
+    logging.info(f"Connecting to {switch['host']}...")
     net_connect = ConnectHandler(**switch)
+    detected_os = detect.operating_system(net_connect)
+    logging.info(f"Detected device: {detected_os}")
+
+    outputs_dict = {}
+
+    if switch["device_type"] is None:
+        logging.error("OS not detected aborting collection...")
+        return
 
     if isinstance(
         commands, str
@@ -32,33 +39,32 @@ def get_data(switch, commands: list):
                 command, read_timeout=30, use_textfsm=True
             )
             if isinstance(output, list):
-                print(f"--- {command} (Parsed) ---")
+                logging.info(f"--- {command} (Parsed) ---")
                 outputs_dict[command] = output
             else:
-                print(f"--- {command} (Raw) ---")
+                logging.info(f"--- {command} (Raw) ---")
                 # if text is not parsed it still adds raw output but flags it with COMMAND NOT PARSED
                 outputs_dict[command] = {
                     "COMMAND NOT PARSED": command,
                     "raw_output": output,
                 }
 
-                print(
-                    f"Error:'{command}' not parsed added to output as COMMAND NOT PARSED"
+                logging.error(
+                    f"'{command}' not parsed reason: {outputs_dict[command].get('raw_output')} \n continuing... "
                 )
-                print(f"Ouput from command:{outputs_dict[command].get('raw_output')}")
 
         except Exception as e:
-            print(f"Error: command output was unexpected(check syntax): {e}")
+            logging.error(f"Command output was unexpected check syntax: {e}")
 
     if net_connect:
         net_connect.disconnect()
-        print("\nConnection closed.")
+        logging.info("Connection closed.")
     if outputs_dict:
         with open("output/raw_output.json", "w") as f:
-            json.dump(output, f, indent=4)
-        print(
-            "\nRaw data collecting succesful! Raw output data is saved to raw_output.json"
+            json.dump(outputs_dict, f, indent=4)
+        logging.info(
+            "Raw data collecting succesful! Raw output data is saved to raw_output.json"
         )
     else:
-        print("Error: No raw output generated check commands")
+        logging.error("No raw output generated check commands")
     return outputs_dict
