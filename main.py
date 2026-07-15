@@ -1,4 +1,4 @@
-#!/home/noc/Desktop/auto_discovery/.venv/bin/python3
+#!/home/noc/Desktop/nb_from_switch/.venv/bin/python3
 import argparse
 import logging
 import os
