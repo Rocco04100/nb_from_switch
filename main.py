@@ -1,3 +1,4 @@
+#!/home/noc/Desktop/auto_discovery/.venv/bin/python3
 import argparse
 import logging
 
@@ -18,7 +19,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "-l",
     "--log",
-    default="WARNING",
+    default="INFO",
     choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
     type=str.upper,
     help="Set the level of logs you see the higher the level the less logs you see(debug shows all)",
@@ -28,7 +29,7 @@ args = parser.parse_args()
 # Logging setup
 ######################################
 logging.basicConfig(
-    level=getattr(logging, args.log()),
+    level=getattr(logging, args.log),
     format="%(asctime)s %(levelname)s - %(message)s",
 )
 logging.getLogger("netmiko").setLevel(logging.WARN)
@@ -89,27 +90,24 @@ NETBOX CONNECTION -> CALL nbapi FUNCTIONS
 """
 
 try:
-    # logging.info("Connecting to nb api via pynetbox...")
-    # nb = pynetbox.api(
-    #     "https://demo.netbox.dev/",
-    #     token="5MR7eDSdwZirNB4B39EMdZbtqusxJENUdG7gqfLt",
-    # )
+    logging.info("Connecting to nb api via pynetbox...")
+    nb = pynetbox.api(
+        "https://demo.netbox.dev/",
+        token="5MR7eDSdwZirNB4B39EMdZbtqusxJENUdG7gqfLt",
+    )
     # # if local_switch:
     #     nbapi.post_switch(nb, local_switch)
     """
     Testing below
     """
-    # thing = {
-    #     "name": "BOBSWITCH",
-    #     "status": "active",
-    #     "site": 22,
-    #     "device_type": 24,
-    #     "role": 15,
-    # }
-    # device = nb.dcim.devices.create(thing)
-    # logging.debug(f"Obeject device type: {type(device)}")
-    # logging.debug(f"Live api url: {device.url}")
-    # logging.debug(f"Assigned server id: {device.id}")
+    thing = {
+        "name": "BOBSWITCH",
+        "status": "active",
+        "site": 22,
+        "device_type": 24,
+        "role": 15,
+    }
+    nbapi.post_switch(nb, thing)
 
 
 except Exception as e:
