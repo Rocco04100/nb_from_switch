@@ -1,8 +1,10 @@
 #!/home/noc/Desktop/auto_discovery/.venv/bin/python3
 import argparse
 import logging
+import os
 
 import pynetbox
+from dotenv import load_dotenv
 from netmiko import ConnectHandler
 
 import collector
@@ -10,6 +12,11 @@ import detect
 import nbapi
 import parse
 
+load_dotenv()
+netbox_url = os.getenv("NETBOX_URL")
+netbox_token = os.getenv("NETBOX_TOKEN")
+if not netbox_url or not netbox_token:
+    raise ValueError("Missing netbox credentials! check you .env file")
 ###########################################
 # argparse setup
 ######################################
@@ -68,48 +75,42 @@ switch = {
 """
 SWITCH CONNECTION -> GATHER AND CLEAN UP
 """
-# try:
-#     logging.info(f"Connecting to {switch['host']}...")
-#     net_connect = ConnectHandler(**switch)
-#     detected_os = detect.operating_system(net_connect)
-#     if detected_os:
-#         switch["device_type"] = detected_os
-
-#     output = collector.get_data(net_connect, commands)
-#     connected_devices = parse.connected_devices(output)
-#     local_switch = collector.get_switch(net_connect)
-#     if net_connect:
-#         net_connect.disconnect()
-#         logging.info("Connection closed.")
-# except Exception as e:
-#     logging.error(e)
-
-
-"""
-NETBOX CONNECTION -> CALL nbapi FUNCTIONS
-"""
-
 try:
+    logging.info(f"Connecting to {switch['host']}...")
+    net_connect = ConnectHandler(**switch)
+    detected_os = detect.operating_system(net_connect)
+    if detected_os:
+        switch["device_type"] = detected_os
+
+    output = collector.get_data(net_connect, commands)
+    connected_devices = parse.connected_devices(output)
+    local_switch = collector.get_switch(net_connect)
+    if net_connect:
+        net_connect.disconnect()
+        logging.info("Connection closed.")
+
+    """
+    NETBOX CONNECTION -> CALL nbapi FUNCTIONS
+    """
+
     logging.info("Connecting to nb api via pynetbox...")
     nb = pynetbox.api(
-        "https://demo.netbox.dev/",
-        token="5MR7eDSdwZirNB4B39EMdZbtqusxJENUdG7gqfLt",
+        netbox_url,
+        token=netbox_token,
     )
-    # # if local_switch:
-    #     nbapi.post_switch(nb, local_switch)
+    if local_switch:
+        nbapi.post_switch(nb, local_switch)
     """
     Testing below
     """
     thing = {
         "name": "BOBSWITCH",
-        "status": "active",
+        "status": "Active",
         "site": 22,
         "device_type": 24,
         "role": 15,
     }
     nbapi.post_switch(nb, thing)
-
-
 except Exception as e:
     logging.error(e)
 
