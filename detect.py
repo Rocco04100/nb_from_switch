@@ -4,11 +4,14 @@ from netmiko import ConnectHandler, redispatch
 
 
 def operating_system(ssh_session):
+    logging.info("Detecting OS...")
     """
+    #######################################################################################
     Accepts an active ssh connection
     Probes the ouuput of show version for what is contained in the output
     Will change the os on the ssh connection if a version is connected.
     Returns the os in a string for use in other functions
+    #######################################################################################
     """
 
     probe_output = ssh_session.send_command("show version")
@@ -31,6 +34,7 @@ def operating_system(ssh_session):
         if "Invalid input" not in voss_probe:
             logging.info("OS fingerprint match: VOSS Redispatching...")
             redispatch(ssh_session, device_type="extreme_vsp")
+            return "voss"
 
     logging.error("OS detetcion failed no fingerprints matched")
     return None

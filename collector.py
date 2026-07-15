@@ -6,7 +6,38 @@ from netmiko import ConnectHandler
 import detect
 
 
-def get_data(switch, commands: list):
+def get_switch(net_connect):
+    logging.info("Collecting and cleaning switch data for netbox import")
+    try:
+        switch_name = net_connect.find_prompt().strip("#>")
+        detected_os = detect.operating_system(net_connect)
+        if detected_os in ["voss", "slx", "exos"]:
+            manufacturer = "Extreme"
+        else:
+            manufacturer = ""
+    except Exception as e:
+        logging.error(e)
+
+    local_switch = {
+        "role": 14,
+        "name": switch_name,
+        "site": 2,
+        "device_type": 19,
+    }
+
+    if manufacturer:
+        local_switch["manufacturer"] = manufacturer
+
+    with open("output/local_switch.json", "w") as f:
+        json.dump(local_switch, f, indent=4)
+    logging.info(
+        "Switch data collected and cleaned for netbox! Data saved to local_switch.json"
+    )
+    logging.debug(local_switch)
+    return local_switch
+
+
+def get_data(net_connect, commands: list):
     """
     ###############################################################
     - Outputs a dictionary of raw data from a command using TextFSM
@@ -16,17 +47,7 @@ def get_data(switch, commands: list):
     ###############################################################
     """
 
-    net_connect = None
-    logging.info(f"Connecting to {switch['host']}...")
-    net_connect = ConnectHandler(**switch)
-    detected_os = detect.operating_system(net_connect)
-    logging.info(f"Detected device: {detected_os}")
-
     outputs_dict = {}
-
-    if switch["device_type"] is None:
-        logging.error("OS not detected aborting collection...")
-        return
 
     if isinstance(
         commands, str
@@ -56,15 +77,13 @@ def get_data(switch, commands: list):
         except Exception as e:
             logging.error(f"Command output was unexpected check syntax: {e}")
 
-    if net_connect:
-        net_connect.disconnect()
-        logging.info("Connection closed.")
     if outputs_dict:
         with open("output/raw_output.json", "w") as f:
             json.dump(outputs_dict, f, indent=4)
         logging.info(
-            "Raw data collecting succesful! Raw output data is saved to raw_output.json"
+            "Raw command data collecting succesful! Raw output data is saved to raw_output.json"
         )
     else:
         logging.error("No raw output generated check commands")
+
     return outputs_dict

@@ -43,18 +43,19 @@ def create_lldp_table(lldp_data):
     if isinstance(lldp_data, list):
         for neighbor in lldp_data:
             remote_host = neighbor.get("neighbor", "")
-            if isinstance(remote_host, list):
-                remote_host = remote_host[0] if remote_host else ""
 
             local_port = neighbor.get("local_interface", "")
-            if isinstance(local_port, list):
-                local_port = local_port[0] if local_port else ""
             local_port = str(local_port)
+            mgmt_ip = neighbor.get("management_address")
+            capabilities = neighbor.get("capabilities", "")
+            is_network_device = any(cap in capabilities for cap in ["B", "R"])
+            is_end_host = "S" in capabilities
 
             if remote_host and local_port:
                 lldp_table[local_port] = {
                     "hostname": remote_host,
-                    "is_network_device": True,
+                    "is_network_device": is_network_device,
+                    "is_end_host": is_end_host,
                 }
     return lldp_table
 
@@ -179,6 +180,6 @@ def connected_devices(raw_data):
         with open("output/connected_devices.json", "w") as f:
             json.dump(connected_devices, f, indent=4)
         logging.info(
-            "\nConnected Devices parsing successful! Data saved to connected_devices.json"
+            "Connected Devices parsing successful! Data saved to connected_devices.json"
         )
     return connected_devices
