@@ -8,6 +8,8 @@ import detect
 
 def get_switch(net_connect):
     logging.info("Collecting and cleaning switch data for netbox import")
+    manufacturer = None
+    switch_name = None
     try:
         switch_name = net_connect.find_prompt().strip("#>")
         detected_os = detect.operating_system(net_connect)
@@ -33,7 +35,7 @@ def get_switch(net_connect):
     logging.info(
         "Switch data collected and cleaned for netbox! Data saved to local_switch.json"
     )
-    logging.debug(local_switch)
+    logging.debug(f"local switch dict: \n{local_switch}")
     return local_switch
 
 

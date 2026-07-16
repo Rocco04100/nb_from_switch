@@ -23,6 +23,8 @@ def post_switch(nb, switchdict):
         # existing_switch = nb.dcim.devices.filter(switchdict["name"])
         search_results = nb.dcim.devices.filter(name=switchdict["name"])
         results_list = list(search_results)
+        existing_switch = None
+
         if len(results_list) > 0:
             existing_switch = results_list[0]
             logging.debug(f"Potential existing switch: {existing_switch}")
