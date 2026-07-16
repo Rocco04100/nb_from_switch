@@ -112,7 +112,7 @@ def local_switch(net_connect, detected_os, ip_address):
         "site": {"name": site},
         "device_type": {"model": device_type},
         "role": {"name": role},
-        "status": {"name": status},
+        "status": status,
         # "cf_ip_address": ip_address,############################################# UNCOMMENT when on real netbox
         # "cf_mac_address": mac_address,
         "description": f"Discovered via {detected_os or 'unknown'} OS fingerprint",
