@@ -61,6 +61,68 @@ def create_lldp_table(lldp_data):
     return lldp_table
 
 
+def local_switch(net_connect, detected_os, ip_address):
+    """
+    #######################################################################################
+    Parse the detected OS to determine the local switch role and device type
+    #######################################################################################
+    """
+    try:
+           switch_name = net_connect.find_prompt().strip("#>")
+    except Exception as e:
+            logging.error(f"Could not read switch prompt: {e}")
+            switch_name = None
+
+    manufacturer = ""
+    if detected_os in ["voss", "slx", "exos"]:
+        manufacturer = "Extreme"
+    elif detected_os == "cisco":
+        manufacturer = "Cisco"
+
+    role = "Switch"
+    device_type = "Generic Switch"
+    status = "active"
+    site = nb_utils.get_site(ip_address)
+    mac_address= ""
+
+    checks = {
+        "name": switch_name,
+        "site": site,
+        "device_type": device_type,
+        "role": role,
+        "status": status,
+    }
+    missing = [k for k, v in checks.items() if not v]
+    if missing:
+        logging.error(
+            f"Missing fields [{', '.join(missing)}] cannot upload local switch"
+        )
+        return None
+
+    switch_info = {
+        "name": switch_name,
+        "site": {"name": site},
+        "device_type": {"model": device_type},
+        "role": {"name": role},
+        "status": {"name": status},
+        "site": {"name": site},
+        # "cf_ip_address": ip_address,############################################# UNCOMMENT when on real netbox
+        # "cf_mac_address": mac_address,
+        "description": f"Discovered via {detected_os or 'unknown'} OS fingerprint",
+    }
+
+    if manufacturer:
+        switch_info["cf_manufacturer"] = manufacturer
+
+    with open("output/local_switch.json", "w") as f:
+        json.dump(switch_info, f, indent=4)
+    logging.info(
+        "Local switch parsed for netbox upload! Data saved to local_switch.json"
+    )
+    logging.debug(f"local switch dict: \n{switch_info}")
+    return switch_info
+
+
 def connected_devices(raw_data):
     """
     #######################################################################################
@@ -108,11 +170,12 @@ def connected_devices(raw_data):
                     device_type = "Generic Switch"
                 else:
                     role = "Endpoint"
-                    device_type = "Workstation"
+                    device_type = "Unknown Enpoint"
             else:
                 # Port has no LLDP neighbor. If it only has 1 dynamic MAC, it's likely a host workstation.
                 role = "Endpoint"
-                device_type = "Workstation"
+                device_type = "Unknown Endpoint"
+                name = f"Unknown Endpoint: {mac}"
 
             checks = {
                             "site": site,
@@ -120,6 +183,7 @@ def connected_devices(raw_data):
                             "role": role,
                             "status": status
                         }
+
             missing = [k for k, v in checks.items() if not v]
             if not missing:
                 device_info = {
@@ -134,6 +198,7 @@ def connected_devices(raw_data):
                     "cf_installation_date": "1900-1-1",
                     "description": f"Discovered via {source} correlation",
                 }
+                logging.debug(f"Adding device: {device_info}")
                 connected_devices.append(device_info)
             else:
 

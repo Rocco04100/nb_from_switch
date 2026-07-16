@@ -69,38 +69,43 @@ switch = {
 SWITCH CONNECTION -> GATHER AND CLEAN UP
 """
 try:
-#     logging.info(f"Connecting to {switch['host']}...")
-#     net_connect = ConnectHandler(**switch)
-#     detected_os = detect.operating_system(net_connect)
-#     if detected_os:
-#         switch["device_type"] = detected_os
+    logging.info(f"Connecting to {switch['host']}...")
+    net_connect = ConnectHandler(**switch)
+    detected_os = detect.operating_system(net_connect)
+    if detected_os:
+        switch["device_type"] = detected_os
 
-#     output = collector.get_data(net_connect, commands)
-#     connected_devices = parse.connected_devices(output)
-#     local_switch = collector.get_switch(net_connect)
-#     if net_connect:
-#         net_connect.disconnect()
-#         logging.info("Connection closed.")
+    output = collector.get_data(net_connect, commands)
+    connected_devices = parse.connected_devices(output)
+    local_switch = parse.local_switch(net_connect, detected_os, switch["host"])
+    if net_connect:
+        net_connect.disconnect()
+        logging.info("Connection closed.")
 
     """
     NETBOX CONNECTION -> CALL nbapi FUNCTIONS
     """
 
-#     logging.info("Connecting to nb api via pynetbox...")
+    logging.info("Connecting to nb api via pynetbox...")
     nb = pynetbox.api(
         netbox_url,
         token=netbox_token,
     )
-#     if local_switch:
-#         nbapi.post_switch(nb, local_switch)
-    device_info = {
-        "name": "BOB TEST SWITCH",
-        "site": {"name": "D. S. Weaver Labs"},
-        "device_type": {"model": "some cisco"},
-        "role": {"name": "Access Switch"},
-        "status": "active",
+    if local_switch:
+        nbapi.post_switch(nb, local_switch)
+#
+#
+#
+# test spot
+#
+# device_info = {
+#         "name": "BOB TEST SWITCH",
+#         "site": {"name": "D. S. Weaver Labs"},
+#         "device_type": {"model": "some cisco"},
+#         "role": {"name": "Access Switch"},
+#         "status": "active",
 
-    }
-    nbapi.post_switch(nb, device_info)
+#     }
+#     nbapi.post_switch(nb, device_info)
 except Exception as e:
     logging.error(e)

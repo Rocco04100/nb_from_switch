@@ -34,11 +34,18 @@ def post_switch(nb, switchdict):
 
             for key, local_value in switchdict.items():
                 server_attr = getattr(existing_switch, key)
-                server_value = (
-                    server_attr.id if hasattr(server_attr, "id") else server_attr
-                )
+                if isinstance(local_value, dict):
+                    local_compare = getattr(local_value, key)
+                    server_value = (
+                        server_attr.name if hasattr(server_attr, "name") else server_attr
+                    )
+                else:
+                    local_compare = local_value
+                    server_value = (
+                        server_attr.name if hasattr(server_attr, "name") else server_attr
+                    )
 
-                if str(server_value).lower() != str(local_value).lower():
+                if str(server_value).lower() != str(local_compare).lower():
                     logging.debug(
                         f"Mismatch found in {key}: Local is '{local_value}', Server is '{server_value}'"
                     )
