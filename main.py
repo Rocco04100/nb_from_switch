@@ -37,7 +37,7 @@ args = parser.parse_args()
 ######################################
 logging.basicConfig(
     level=getattr(logging, args.log),
-    format="%(asctime)s %(levelname)s - %(message)s",
+    format="%(asctime)s %(module)s %(levelname)s - %(message)s",
 )
 logging.getLogger("netmiko").setLevel(logging.WARN)
 logging.getLogger("paramiko").setLevel(logging.WARN)
@@ -91,8 +91,11 @@ try:
         netbox_url,
         token=netbox_token,
     )
+    switch_device = None
     if local_switch:
-        nbapi.post_switch(nb, local_switch)
+        switch_device = nbapi.post_switch(nb, local_switch)
+    if connected_devices:
+        nbapi.post_connected_devices(nb, connected_devices, switch_device)
 #
 #
 #
@@ -108,4 +111,4 @@ try:
 #     }
 #     nbapi.post_switch(nb, device_info)
 except Exception as e:
-    logging.error(e)
+    logging.error(f"{e}")

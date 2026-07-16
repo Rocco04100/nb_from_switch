@@ -45,8 +45,16 @@ def create_lldp_table(lldp_data):
         for neighbor in lldp_data:
             remote_host = neighbor.get("neighbor", "")
 
-            local_port = neighbor.get("local_interface", "")
-            local_port = str(local_port)
+            local_port = str(neighbor.get("local_interface", ""))
+
+            remote_port = (
+                neighbor.get("neighbor_interface")
+                or neighbor.get("neighbor_port_id")
+                or neighbor.get("remote_interface")
+                or ""
+            )
+
+
             capabilities = neighbor.get("capabilities", "")
             is_network_device = any(cap in capabilities for cap in ["B", "R"])
             is_end_host = "S" in capabilities
@@ -56,7 +64,8 @@ def create_lldp_table(lldp_data):
                     "hostname": remote_host,
                     "is_network_device": is_network_device,
                     "is_end_host": is_end_host,
-                    "capabilities": capabilities
+                    "capabilities": capabilities,
+                    "remote_port": remote_port
                 }
     return lldp_table
 
@@ -149,11 +158,12 @@ def connected_devices(raw_data):
             status = "active"
             name ="MAC ARP DISCOVERED"
             source="MAC_ARP"
+            remote_interface = "NIC"
 
             if port in lldp_table:
                 lldp_info = lldp_table[port]
                 name = lldp_info["hostname"]
-                is_network_device = lldp_info["is_network_device"]
+                remote_interface = lldp_info["remote_port"] or "NIC"
                 source = "LLDP"
 
                 # Determine Netbox Role via LLDP Capabilities flags
@@ -170,7 +180,7 @@ def connected_devices(raw_data):
                 # Port has no LLDP neighbor. If it only has 1 dynamic MAC, it's likely a host workstation.
                 role = "Endpoint"
                 device_type = "Unknown Endpoint"
-                name = f"Unknown Endpoint-{mac}"
+                name = f"Unknown Host({':'.join([mac[i : i + 2] for i in range(0, 12, 2)])})"
 
             checks = {
                             "site": site,
@@ -186,12 +196,14 @@ def connected_devices(raw_data):
                     "site": {"name": site},
                     "device_type": {"model": device_type},
                     "role": {"name": role},
-                    "status": {"name": status},
-                    "switch_port": port,
-                    "cf_mac_address": ":".join([mac[i : i + 2] for i in range(0, 12, 2)]),
-                    "cf_ip_address": ip_address,
-                    "cf_installation_date": "1900-1-1",
+                    "status": status,
+                    # "switch_port": port,
+                    # "cf_mac_address": ":".join([mac[i : i + 2] for i in range(0, 12, 2)]),
+                    # "cf_ip_address": ip_address,
+                    # "cf_installation_date": "1900-1-1",
                     "description": f"Discovered via {source} correlation",
+                    "_local_interface": port,          # the switch's port name
+                    "_remote_interface": remote_interface,  # the device's own port name (or "NIC")
                 }
                 logging.debug(f"Adding device: {device_info}")
                 connected_devices.append(device_info)
