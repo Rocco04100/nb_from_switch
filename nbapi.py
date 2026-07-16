@@ -1,5 +1,6 @@
 import logging
 import pynetbox
+import ipaddress
 
 
 def get_or_create_manufacturer(nb, name):
@@ -61,14 +62,14 @@ def resolve_relations(nb, devicedict):
         device_type = get_or_create_device_type(nb, model, manufacturer_name)
         if not device_type:
             return None
-        devicedict["device_type"] = {"id": device_type.id}
+        devicedict["device_type"] = {"model": device_type.model}
 
     role_info = devicedict.get("role")
     if isinstance(role_info, dict):
         role = get_or_create_role(nb, role_info.get("name"))
         if not role:
             return None
-        devicedict["role"] = {"id": role.id}
+        devicedict["role"] = {"name": role.name}
 
     return devicedict
 
@@ -79,10 +80,13 @@ def post_device(nb, devicedict):
     Used for both the local switch and each discovered connected device.
     """
     devicedict = resolve_relations(nb, devicedict)
-    devicedict = {k: v for k, v in devicedict.items() if not k.startswith("_")}
+
+
     if devicedict is None:
         logging.error("Skipping device upload: could not resolve required relations")
         return None
+
+    devicedict = {k: v for k, v in devicedict.items() if not k.startswith("_")}
 
     logging.info(f"Uploading device '{devicedict.get('name')}' to nb")
     logging.debug(f"The dict we are uploading: {devicedict}")
@@ -96,21 +100,18 @@ def post_device(nb, devicedict):
             logging.info(f"'{devicedict['name']}' already exists. Checking differences...")
             needs_update = False
             for key, local_value in devicedict.items():
-                server_attr = getattr(existing_device, key)
-                if isinstance(local_value, dict):
-                    local_compare = next(iter(local_value.values()), None)
-                else:
-                    local_compare = local_value
-                server_value = (
-                    server_attr.id if hasattr(server_attr, "id") else server_attr
-                )
+                server_attr = getattr(existing_device, key, None)
 
-                if str(server_value).lower() != str(local_compare).lower():
-                    logging.debug(
-                        f"Mismatch found in {key}: Local is '{local_compare}', Server is '{server_value}'"
-                    )
-                    setattr(existing_device, key, local_value)
-                    needs_update = True
+                local_name = get_relation_name(local_value)
+                server_name = get_relation_name(server_attr)
+                if str(server_name).casefold() == str(local_name).casefold():
+                    continue
+                logging.info(
+                    f"Mismatch found in {key}: "
+                    f"Local is '{local_name}', Server is '{server_name}'"
+                )
+                setattr(existing_device, key, local_value)
+                needs_update = True
 
             if needs_update:
                 existing_device.save()
@@ -145,6 +146,7 @@ def post_connected_devices(nb, devices, switch_device):
         devicedict = dict(device)
         local_iface_name = devicedict.pop("_local_interface", None)
         remote_iface_name = devicedict.pop("_remote_interface", "NIC")
+        discovered_ip = devicedict.pop("_ip_address", None)
 
         nb_device = post_device(nb, devicedict)
         results.append(nb_device)
@@ -154,6 +156,10 @@ def post_connected_devices(nb, devices, switch_device):
         switch_iface = get_or_create_interface(nb, switch_device, local_iface_name)
         device_iface = get_or_create_interface(nb, nb_device, remote_iface_name)
         get_or_create_cable(nb, switch_iface, device_iface)
+
+        ip_record = get_or_create_ip_address(nb, discovered_ip, device_iface)
+        if ip_record:
+            set_primary_ip(nb_device, ip_record)
 
     succeeded = sum(1 for r in results if r)
     logging.info(f"Connected devices upload complete: {succeeded}/{len(devices)} succeeded")
@@ -199,3 +205,118 @@ def get_or_create_cable(nb, interface_a, interface_b):
     except pynetbox.RequestError as e:
         logging.error(f"Could not create cable: {e}")
         return None
+
+
+def get_or_create_ip_address(nb, address, interface):
+
+    if not address:
+        logging.warning("Connected device has no discovered IP address; skipping IP upload")
+        return None
+
+    if not interface:
+        logging.warning(
+            f"Could not assign discovered IP '{address}': device interface is missing"
+        )
+        return None
+
+    try:
+        raw_address = str(address).strip()
+
+        # NetBox requires IP addresses in CIDR notation.
+        if "/" not in raw_address:
+            parsed = ipaddress.ip_address(raw_address)
+            prefix_length = 32 if parsed.version == 4 else 128
+            raw_address = f"{raw_address}/{prefix_length}"
+
+        normalized_address = str(ipaddress.ip_interface(raw_address))
+    except ValueError:
+        logging.error(f"Invalid IP address discovered: '{address}'")
+        return None
+
+    try:
+        matches = list(nb.ipam.ip_addresses.filter(address=normalized_address))
+        existing_ip = matches[0] if matches else None
+
+        if existing_ip:
+            assigned_object = getattr(existing_ip, "assigned_object", None)
+
+            if assigned_object and assigned_object.id != interface.id:
+                logging.warning(
+                    f"IP '{normalized_address}' is already assigned to another "
+                    "NetBox object; not moving it"
+                )
+                return None
+
+            if not assigned_object:
+                existing_ip.assigned_object_type = "dcim.interface"
+                existing_ip.assigned_object_id = interface.id
+                existing_ip.save()
+                logging.info(
+                    f"Assigned existing IP '{normalized_address}' to "
+                    f"'{interface.device.name}:{interface.name}'"
+                )
+
+            return existing_ip
+
+        ip_record = nb.ipam.ip_addresses.create(
+            address=normalized_address,
+            status="active",
+            assigned_object_type="dcim.interface",
+            assigned_object_id=interface.id,
+        )
+        logging.info(
+            f"Created IP '{normalized_address}' on "
+            f"'{interface.device.name}:{interface.name}'"
+        )
+        return ip_record
+
+    except pynetbox.RequestError as e:
+        logging.error(f"Could not create or assign IP '{normalized_address}': {e}")
+        return None
+
+
+def set_primary_ip(device, ip_record):
+    logging.debug(f"setting {ip_record} as primary IP for {device.name}")
+    if not device or not ip_record:
+        return False
+
+    try:
+        version = ipaddress.ip_interface(str(ip_record.address)).version
+        primary_field = "primary_ip4" if version == 4 else "primary_ip6"
+
+        current_primary = getattr(device, primary_field, None)
+        if getattr(current_primary, "id", None) == ip_record.id:
+            return True
+
+        setattr(device, primary_field, ip_record.id)
+        device.save()
+
+        logging.info(
+            f"Set '{ip_record.address}' as {primary_field} for '{device.name}'"
+        )
+        return True
+
+    except (ValueError, pynetbox.RequestError) as e:
+        logging.error(f"Could not set primary IP for '{device.name}': {e}")
+        return False
+
+
+def get_relation_name(value):
+    if value is None:
+           return None
+
+    fields = ("name", "model", "value", "label", "id")
+
+    if isinstance(value, dict):
+        for field in fields:
+            field_value = value.get(field)
+            if field_value is not None:
+                return field_value
+        return str(value)
+
+    for field in fields:
+        field_value = getattr(value, field, None)
+        if field_value is not None:
+            return field_value
+
+    return value

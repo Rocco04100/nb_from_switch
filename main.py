@@ -111,4 +111,4 @@ try:
 #     }
 #     nbapi.post_switch(nb, device_info)
 except Exception as e:
-    logging.error(f"{e}")
+    logging.error(f"Unhandled error:{e}")

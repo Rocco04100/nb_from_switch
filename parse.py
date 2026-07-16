@@ -204,6 +204,7 @@ def connected_devices(raw_data):
                     "description": f"Discovered via {source} correlation",
                     "_local_interface": port,          # the switch's port name
                     "_remote_interface": remote_interface,  # the device's own port name (or "NIC")
+                    "_ip_address": ip_address,
                 }
                 logging.debug(f"Adding device: {device_info}")
                 connected_devices.append(device_info)
