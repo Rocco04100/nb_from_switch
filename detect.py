@@ -27,7 +27,7 @@ def operating_system(ssh_session):
         return "exos"
     elif "SLX" in probe_output:
         logging.info("OS fingerprint match: SLX-OS. Redispatching...")
-        redispatch(ssh_session, device_type="extreme_slx")
+        redispatch(ssh_session, device_type="extreme_slxos")
         return "slx"
     elif "Invalid input" in probe_output:
         voss_probe = ssh_session.send_command("show sys-info")
