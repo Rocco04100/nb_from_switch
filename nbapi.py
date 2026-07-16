@@ -1,5 +1,6 @@
 import logging
 
+from netmiko import log
 import pynetbox
 
 
@@ -20,6 +21,15 @@ def post_switch(nb, switchdict):
     logging.debug(f"The dict we are uploading: {(switchdict)}")
 
     try:
+        device_type_info = switchdict.get("device_type")
+        if isinstance(device_type_info, dict):
+            model = device_type_info.get("model")
+            manufacturer_name = switchdict.pop("cf_manufacturer", "Generic")
+            device_type = get_or_create_device_type(nb, model, manufacturer_name)
+            if not device_type:
+                logging.error(f"Skipping switch upload: device type '{model}' unresolved")
+                return
+            switchdict["device_type"] = {"id": device_type.id}
         # existing_switch = nb.dcim.devices.filter(switchdict["name"])
         search_results = nb.dcim.devices.filter(name=switchdict["name"])
         results_list = list(search_results)
@@ -35,7 +45,7 @@ def post_switch(nb, switchdict):
             for key, local_value in switchdict.items():
                 server_attr = getattr(existing_switch, key)
                 if isinstance(local_value, dict):
-                    local_compare = getattr(local_value, key)
+                    local_compare =  next(iter(local_value.values()), None)
                     server_value = (
                         server_attr.name if hasattr(server_attr, "name") else server_attr
                     )
@@ -47,7 +57,7 @@ def post_switch(nb, switchdict):
 
                 if str(server_value).lower() != str(local_compare).lower():
                     logging.debug(
-                        f"Mismatch found in {key}: Local is '{local_value}', Server is '{server_value}'"
+                        f"Mismatch found in {key}: Local is '{local_compare}', Server is '{server_value}'"
                     )
                     setattr(existing_switch, key, local_value)
                     needs_update = True
@@ -68,3 +78,42 @@ def post_switch(nb, switchdict):
         logging.error(f"POST: {e}")
     except Exception as e:
         logging.debug(f"Posting switch: {e}")
+
+
+def get_or_create_manufacturer(nb, name):
+    manufacturer = nb.dcim.manufacturers.get(name=name)
+    if manufacturer:
+        return manufacturer
+
+    logging.info(f"Manufacturer '{name}' not found in NetBox. Creating it...")
+    slug = name.lower().replace(" ", "-")
+    try:
+        return nb.dcim.manufacturers.create(name=name, slug=slug)
+    except pynetbox.RequestError as e:
+        logging.error(f"Could not create manufacturer '{name}': {e}")
+        return None
+
+
+def get_or_create_device_type(nb, model, manufacturer_name="Generic"):
+    logging.info(f"Checking if device type '{model}' exists in NetBox...")
+    device_type = nb.dcim.device_types.get(model=model)
+    if device_type:
+        logging.info(f"Device type '{model}' found in NetBox.")
+        return device_type
+
+    logging.info(f"Device type '{model}' not found in NetBox. Creating it...")
+    manufacturer = get_or_create_manufacturer(nb, manufacturer_name)
+    if not manufacturer:
+        logging.error(f"Cannot create device type '{model}' without a manufacturer")
+        return None
+
+    slug = model.lower().replace(" ", "-")
+    try:
+        return nb.dcim.device_types.create(
+            model=model,
+            slug=slug,
+            manufacturer=manufacturer.id,
+        )
+    except pynetbox.RequestError as e:
+        logging.error(f"Could not create device type '{model}': {e}")
+        return None

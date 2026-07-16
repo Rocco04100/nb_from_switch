@@ -6,39 +6,6 @@ from netmiko import ConnectHandler
 import detect
 
 
-def get_switch(net_connect):
-    logging.info("Collecting and cleaning switch data for netbox import")
-    manufacturer = None
-    switch_name = None
-    try:
-        switch_name = net_connect.find_prompt().strip("#>")
-        detected_os = detect.operating_system(net_connect)
-        if detected_os in ["voss", "slx", "exos"]:
-            manufacturer = "Extreme"
-        else:
-            manufacturer = ""
-    except Exception as e:
-        logging.error(e)
-
-    local_switch = {
-        "role": 14,
-        "name": switch_name,
-        "site": 2,
-        "device_type": 19,
-    }
-
-    if manufacturer:
-        local_switch["manufacturer"] = manufacturer
-
-    with open("output/local_switch.json", "w") as f:
-        json.dump(local_switch, f, indent=4)
-    logging.info(
-        "Switch data collected and cleaned for netbox! Data saved to local_switch.json"
-    )
-    logging.debug(f"local switch dict: \n{local_switch}")
-    return local_switch
-
-
 def get_data(net_connect, commands: list):
     """
     ###############################################################

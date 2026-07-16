@@ -79,11 +79,10 @@ def local_switch(net_connect, detected_os, ip_address):
     elif detected_os == "cisco":
         manufacturer = "Cisco"
 
-    role = "Switch"
+    role = "Core Switch"
     device_type = "Generic Switch"
     status = "active"
     site = nb_utils.get_site(ip_address)
-    mac_address= ""
 
     checks = {
         "name": switch_name,
@@ -105,14 +104,10 @@ def local_switch(net_connect, detected_os, ip_address):
         "device_type": {"model": device_type},
         "role": {"name": role},
         "status": {"name": status},
-        "site": {"name": site},
         # "cf_ip_address": ip_address,############################################# UNCOMMENT when on real netbox
         # "cf_mac_address": mac_address,
         "description": f"Discovered via {detected_os or 'unknown'} OS fingerprint",
     }
-
-    if manufacturer:
-        switch_info["cf_manufacturer"] = manufacturer
 
     with open("output/local_switch.json", "w") as f:
         json.dump(switch_info, f, indent=4)
@@ -175,7 +170,7 @@ def connected_devices(raw_data):
                 # Port has no LLDP neighbor. If it only has 1 dynamic MAC, it's likely a host workstation.
                 role = "Endpoint"
                 device_type = "Unknown Endpoint"
-                name = f"Unknown Endpoint: {mac}"
+                name = f"Unknown Endpoint-{mac}"
 
             checks = {
                             "site": site,
