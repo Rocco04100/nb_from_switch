@@ -19,6 +19,9 @@ def get_switch_data(ssh_session):
     try:
         logging.info("Detecting OS...")
         raw_output = ssh_session.send_command("show version")
+        int_output = ssh_session.send_command("show interfaces status")
+        # logging.debug(f"SHOW VERSION OUTPUT:\n{raw_output}")
+        # logging.debug(f"SHOW INT BRIEF OUTPUT:\n {int_output}")
         clean_dict = {}
 
 
@@ -27,15 +30,25 @@ def get_switch_data(ssh_session):
             redispatch(ssh_session, device_type="cisco_ios")
             logging.debug("Redispatch Succesfull! Extracting switch device info...")
             with open('custom_templates/cisco_version.textfsm', mode='r', newline='') as f:
-                custom_template = f.read()
+                version_template = f.read()
+            with open('custom_templates/cisco_interface.textfsm', mode='r', newline='') as f:
+                interface_template = f.read()
 
-            template_file_like = io.StringIO(custom_template)
+            template_file_like = io.StringIO(version_template)
+            int_file_like = io.StringIO(interface_template)
             fsm_engine = textfsm.TextFSM(template_file_like)
-            parsed_rows = fsm_engine.ParseText(raw_output)
+            parse_port = textfsm.TextFSM(int_file_like)
+            parsed_info = fsm_engine.ParseText(raw_output)
+            parsed_ports = parse_port.ParseTextToDicts(int_output)
 
-            clean_dict = dict(zip(fsm_engine.header, parsed_rows[0]), OS="cisco_ios")
+            if parsed_info:
+                clean_dict.update(zip(fsm_engine.header, parsed_info[0]))
+
+            clean_dict["OS"] = "cisco_ios"
+            clean_dict["ports"] = parsed_ports
 
             logging.debug(f"Switch info extracted with textFSM: \n {clean_dict}")
+
             return clean_dict
 
         elif "ExtremeXOS" in raw_output:

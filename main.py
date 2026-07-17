@@ -40,7 +40,7 @@ logging.basicConfig(
 )
 logging.getLogger("netmiko").setLevel(logging.WARN)
 logging.getLogger("paramiko").setLevel(logging.WARN)
-logging.getLogger("connectionpool").setLevel(logging.WARN)
+logging.getLogger("pynetbox").setLevel(logging.WARN)
 
 
 ###########################################
@@ -72,10 +72,12 @@ SWITCH CONNECTION -> GATHER AND CLEAN UP
 try:
     logging.info(f"Connecting to {switch['host']}...")
     net_connect = ConnectHandler(**switch)
-    switch_info = get_switch_data(net_connect)
 
-    output = get_device_data(net_connect, commands)
-    connected_devices = parse.connected_devices(output)
+    switch_info = get_switch_data(net_connect)
+    logging.critical(f"{switch_info}")
+    device_data = get_device_data(net_connect, commands)
+
+    connected_devices = parse.connected_devices(device_data)
     local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
     if net_connect:
         net_connect.disconnect()

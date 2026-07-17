@@ -70,6 +70,20 @@ def create_lldp_table(lldp_data):
     return lldp_table
 
 
+def parse_ports(ports):
+    # Determine if we need to skip the header row ("Port")
+      start_index = 1 if ports and ports[0].get("port") == "Port" else 0
+
+      for item in ports[start_index:]:
+          # Standardize the speed types
+          # if "10/100/1000BaseTX" in item["type"]:
+          #     item["type"] = "1000base-tx)"
+          # elif "SFP" in item["type"]:
+          #     item["type"] = "1000base-x-sfp"
+          item["type"]= "other"
+
+      return ports
+
 def local_switch(net_connect, switch_info, ip_address):
     """
     #######################################################################################
@@ -86,6 +100,7 @@ def local_switch(net_connect, switch_info, ip_address):
     device_type = switch_info["model"]
     status = "active"
     site = nb_utils.get_site(ip_address)
+    ports = parse_ports(switch_info["ports"])
 
     checks = {
         "name": switch_name,
@@ -110,7 +125,8 @@ def local_switch(net_connect, switch_info, ip_address):
         "serial": switch_info["serial"],
         # "cf_ip_address": ip_address,############################################# UNCOMMENT when on real netbox
         # "cf_mac_address": mac_address,
-        "description": f"Info from script -> | mac_address:{switch_info["mac_address"]} | OS:{switch_info["serial"]}",
+        "description": f"Info from script -> | mac_address:{switch_info["mac_address"]} | OS:{switch_info["OS"]}",
+        "_ports": ports,
     }
 
     with open("output/local_switch.json", "w") as f:
@@ -118,7 +134,6 @@ def local_switch(net_connect, switch_info, ip_address):
     logging.info(
         "Local switch parsed for netbox upload! Data saved to local_switch.json"
     )
-    logging.debug(f"local switch dict: \n{switch_info}")
     return switch_info
 
 

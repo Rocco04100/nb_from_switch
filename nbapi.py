@@ -80,6 +80,7 @@ def post_device(nb, devicedict):
     Used for both the local switch and each discovered connected device.
     """
     devicedict = resolve_relations(nb, devicedict)
+    logging.debug(f"device dict: {devicedict}")
 
 
     if devicedict is None:
@@ -133,7 +134,11 @@ def post_device(nb, devicedict):
 
 
 def post_switch(nb, switchdict):
-    return post_device(nb, switchdict)
+    ports_list = switchdict.pop("_ports")
+    switch_posted = post_device(nb, switchdict)
+    for port in ports_list[1:]:
+        get_or_create_interface(nb, switch_posted, port["port"], port["type"])
+    return switch_posted
 
 
 def post_connected_devices(nb, devices, switch_device):
@@ -167,11 +172,13 @@ def post_connected_devices(nb, devices, switch_device):
 
 
 def get_or_create_interface(nb, device, name, iface_type="other"):
+    logging.info(f"Checking if we need to create, {name} on {device}...")
     if not device or not name:
         return None
 
     interface = nb.dcim.interfaces.get(device_id=device.id, name=name)
     if interface:
+        logging.info("Interface found! No need to create")
         return interface
 
     logging.info(f"Interface '{name}' not found on '{device.name}'. Creating it...")
