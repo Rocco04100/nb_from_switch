@@ -7,8 +7,7 @@ import pynetbox
 from dotenv import load_dotenv
 from netmiko import ConnectHandler
 
-import collector
-import detect
+from collector import get_device_data, get_switch_data
 import nbapi
 import parse
 
@@ -73,9 +72,9 @@ SWITCH CONNECTION -> GATHER AND CLEAN UP
 try:
     logging.info(f"Connecting to {switch['host']}...")
     net_connect = ConnectHandler(**switch)
-    switch_info = detect.operating_system(net_connect)
+    switch_info = get_switch_data(net_connect)
 
-    output = collector.get_data(net_connect, commands)
+    output = get_device_data(net_connect, commands)
     connected_devices = parse.connected_devices(output)
     local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
     if net_connect:
