@@ -70,7 +70,7 @@ def create_lldp_table(lldp_data):
     return lldp_table
 
 
-def local_switch(net_connect, detected_os, ip_address):
+def local_switch(net_connect, switch_info, ip_address):
     """
     #######################################################################################
     Parse the detected OS to determine the local switch role and device type
@@ -82,14 +82,8 @@ def local_switch(net_connect, detected_os, ip_address):
             logging.error(f"Could not read switch prompt: {e}")
             switch_name = None
 
-    manufacturer = ""
-    if detected_os in ["voss", "slx", "exos"]:
-        manufacturer = "Extreme"
-    elif detected_os == "cisco":
-        manufacturer = "Cisco"
-
     role = "Core Switch"
-    device_type = "Generic Switch"
+    device_type = switch_info["model"]
     status = "active"
     site = nb_utils.get_site(ip_address)
 
@@ -115,7 +109,7 @@ def local_switch(net_connect, detected_os, ip_address):
         "status": status,
         # "cf_ip_address": ip_address,############################################# UNCOMMENT when on real netbox
         # "cf_mac_address": mac_address,
-        "description": f"Discovered via {detected_os or 'unknown'} OS fingerprint",
+        "description": f"Info from script -> serial:{switch_info["serial"]} | mac_address:{switch_info["mac_address"]} | OS:{switch_info["serial"]}",
     }
 
     with open("output/local_switch.json", "w") as f:
@@ -134,91 +128,93 @@ def connected_devices(raw_data):
     Will not work if TextFSM fails
     #######################################################################################
     """
+    try:
+        connected_devices = []
 
-    connected_devices = []
+        arp_data = raw_data.get("show ip arp", [])
+        arp_table = create_arp_table(arp_data)
 
-    arp_data = raw_data.get("show ip arp", [])
-    arp_table = create_arp_table(arp_data)
+        mac_data = raw_data.get("show mac address-table dynamic", [])
+        mac_table = create_mac_table(mac_data)
 
-    mac_data = raw_data.get("show mac address-table dynamic", [])
-    mac_table = create_mac_table(mac_data)
-
-    lldp_data = raw_data.get("show lldp neighbors detail", [])
-    lldp_table = create_lldp_table(lldp_data)
-
-
-    for mac, ports in mac_table.items():
-        ip_address = arp_table.get(mac, "")
-        site = nb_utils.get_site(ip_address)
+        lldp_data = raw_data.get("show lldp neighbors detail", [])
+        lldp_table = create_lldp_table(lldp_data)
 
 
-        for port in ports:
-            role = ""
-            device_type = ""
-            status = "active"
-            name ="MAC ARP DISCOVERED"
-            source="MAC_ARP"
-            remote_interface = "NIC"
+        for mac, ports in mac_table.items():
+            ip_address = arp_table.get(mac, "")
+            site = nb_utils.get_site(ip_address)
 
-            if port in lldp_table:
-                lldp_info = lldp_table[port]
-                name = lldp_info["hostname"]
-                remote_interface = lldp_info["remote_port"] or "NIC"
-                source = "LLDP"
 
-                # Determine Netbox Role via LLDP Capabilities flags
-                if "R" in lldp_info["capabilities"]:
-                    role = "Router"
-                    device_type = "Generic Router"
-                elif "B" in lldp_info["capabilities"]:
-                    role = "Switch"
-                    device_type = "Generic Switch"
+            for port in ports:
+                role = ""
+                device_type = ""
+                status = "active"
+                name ="MAC ARP DISCOVERED"
+                source="MAC_ARP"
+                remote_interface = "NIC"
+
+                if port in lldp_table:
+                    lldp_info = lldp_table[port]
+                    name = lldp_info["hostname"]
+                    remote_interface = lldp_info["remote_port"] or "NIC"
+                    source = "LLDP"
+
+                    # Determine Netbox Role via LLDP Capabilities flags
+                    if "R" in lldp_info["capabilities"]:
+                        role = "Router"
+                        device_type = "Generic Router"
+                    elif "B" in lldp_info["capabilities"]:
+                        role = "Switch"
+                        device_type = "Generic Switch"
+                    else:
+                        role = "Endpoint"
+                        device_type = "Unknown Enpoint"
                 else:
+                    # Port has no LLDP neighbor. If it only has 1 dynamic MAC, it's likely a host workstation.
                     role = "Endpoint"
-                    device_type = "Unknown Enpoint"
-            else:
-                # Port has no LLDP neighbor. If it only has 1 dynamic MAC, it's likely a host workstation.
-                role = "Endpoint"
-                device_type = "Unknown Endpoint"
-                name = f"Unknown Host({':'.join([mac[i : i + 2] for i in range(0, 12, 2)])})"
+                    device_type = "Unknown Endpoint"
+                    name = f"Unknown Host({':'.join([mac[i : i + 2] for i in range(0, 12, 2)])})"
 
-            checks = {
-                            "site": site,
-                            "device_type": device_type,
-                            "role": role,
-                            "status": status
-                        }
+                checks = {
+                                "site": site,
+                                "device_type": device_type,
+                                "role": role,
+                                "status": status
+                            }
 
-            missing = [k for k, v in checks.items() if not v]
-            if not missing:
-                device_info = {
-                    "name": name,
-                    "site": {"name": site},
-                    "device_type": {"model": device_type},
-                    "role": {"name": role},
-                    "status": status,
-                    # "switch_port": port,
-                    # "cf_mac_address": ":".join([mac[i : i + 2] for i in range(0, 12, 2)]),
-                    # "cf_ip_address": ip_address,
-                    # "cf_installation_date": "1900-1-1",
-                    "description": f"Discovered via {source} correlation",
-                    "_local_interface": port,          # the switch's port name
-                    "_remote_interface": remote_interface,  # the device's own port name (or "NIC")
-                    "_ip_address": ip_address,
-                }
-                logging.debug(f"Adding device: {device_info}")
-                connected_devices.append(device_info)
-            else:
+                missing = [k for k, v in checks.items() if not v]
+                if not missing:
+                    device_info = {
+                        "name": name,
+                        "site": {"name": site},
+                        "device_type": {"model": device_type},
+                        "role": {"name": role},
+                        "status": status,
+                        # "switch_port": port,
+                        # "cf_mac_address": ":".join([mac[i : i + 2] for i in range(0, 12, 2)]),
+                        # "cf_ip_address": ip_address,
+                        # "cf_installation_date": "1900-1-1",
+                        "description": f"Discovered via {source} correlation",
+                        "_local_interface": port,          # the switch's port name
+                        "_remote_interface": remote_interface,  # the device's own port name (or "NIC")
+                        "_ip_address": ip_address,
+                    }
+                    logging.debug(f"Adding device: {device_info}")
+                    connected_devices.append(device_info)
+                else:
 
-                logging.error(
-                    f"Missing Fields [{', '.join(missing)}]"
-                    f"cannot upload device with ip: {ip_address}, port: {port}"
-                )
+                    logging.error(
+                        f"Missing Fields [{', '.join(missing)}]"
+                        f"cannot upload device with ip: {ip_address}, port: {port}"
+                    )
 
-    if connected_devices:
-        with open("output/connected_devices.json", "w") as f:
-            json.dump(connected_devices, f, indent=4)
-        logging.info(
-            "Connected Devices parsing successful! Data saved to connected_devices.json"
-        )
-    return connected_devices
+        if connected_devices:
+            with open("output/connected_devices.json", "w") as f:
+                json.dump(connected_devices, f, indent=4)
+            logging.info(
+                "Connected Devices parsing successful! Data saved to connected_devices.json"
+            )
+        return connected_devices
+    except Exception as e:
+        logging.error(e)

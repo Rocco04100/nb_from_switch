@@ -41,6 +41,8 @@ logging.basicConfig(
 )
 logging.getLogger("netmiko").setLevel(logging.WARN)
 logging.getLogger("paramiko").setLevel(logging.WARN)
+logging.getLogger("connectionpool").setLevel(logging.WARN)
+
 
 ###########################################
 # command and switch setup later edit to loop through ip's
@@ -71,13 +73,11 @@ SWITCH CONNECTION -> GATHER AND CLEAN UP
 try:
     logging.info(f"Connecting to {switch['host']}...")
     net_connect = ConnectHandler(**switch)
-    detected_os = detect.operating_system(net_connect)
-    if detected_os:
-        switch["device_type"] = detected_os
+    switch_info = detect.operating_system(net_connect)
 
     output = collector.get_data(net_connect, commands)
     connected_devices = parse.connected_devices(output)
-    local_switch = parse.local_switch(net_connect, detected_os, switch["host"])
+    local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
     if net_connect:
         net_connect.disconnect()
         logging.info("Connection closed.")
