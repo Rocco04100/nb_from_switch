@@ -107,9 +107,10 @@ def local_switch(net_connect, switch_info, ip_address):
         "device_type": {"model": device_type},
         "role": {"name": role},
         "status": status,
+        "serial": switch_info["serial"],
         # "cf_ip_address": ip_address,############################################# UNCOMMENT when on real netbox
         # "cf_mac_address": mac_address,
-        "description": f"Info from script -> serial:{switch_info["serial"]} | mac_address:{switch_info["mac_address"]} | OS:{switch_info["serial"]}",
+        "description": f"Info from script -> | mac_address:{switch_info["mac_address"]} | OS:{switch_info["serial"]}",
     }
 
     with open("output/local_switch.json", "w") as f:
