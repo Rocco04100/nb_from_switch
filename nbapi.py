@@ -134,11 +134,16 @@ def post_device(nb, devicedict):
 
 
 def post_switch(nb, switchdict):
+
     ports_list = switchdict.pop("_ports")
     switch_posted = post_device(nb, switchdict)
-    for port in ports_list[1:]:
-        get_or_create_interface(nb, switch_posted, port["port"], port["type"])
-    return switch_posted
+    if (switch_posted):
+        logging.info("Getting or creating switch interfaces...")
+        for port in ports_list[1:]:
+            get_or_create_interface(nb, switch_posted, port["port"], port["type"])
+        return switch_posted
+    logging.debug("Switch not posted not checking interfaces returning none")
+    return None
 
 
 def post_connected_devices(nb, devices, switch_device):
@@ -172,7 +177,7 @@ def post_connected_devices(nb, devices, switch_device):
 
 
 def get_or_create_interface(nb, device, name, iface_type="other"):
-    logging.info(f"Checking if we need to create, {name} on {device}...")
+    logging.debug(f"Checking if we need to create, {name} on {device}...")
     if not device or not name:
         return None
 

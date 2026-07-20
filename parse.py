@@ -90,6 +90,9 @@ def local_switch(net_connect, switch_info, ip_address):
     Parse the detected OS to determine the local switch role and device type
     #######################################################################################
     """
+
+    logging.info("Parsing local switch for netbox...")
+
     try:
            switch_name = net_connect.find_prompt().strip("#>")
     except Exception as e:
@@ -144,6 +147,9 @@ def connected_devices(raw_data):
     Will not work if TextFSM fails
     #######################################################################################
     """
+
+    logging.info("Parsing connected devices for netbox...")
+
     try:
         connected_devices = []
 

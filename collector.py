@@ -6,6 +6,55 @@ from netmiko import redispatch
 import textfsm
 import io
 
+def get_exos_data(ssh_session):
+    clean_dict ={}
+    switch_output = ssh_session.send_command("show switch")
+    with open('custom_templates/exos_switch.textfsm', mode='r', newline='') as f:
+        switch_template = f.read()
+    temp_file = io.StringIO(switch_template)
+    switch_parse = textfsm.TextFSM(temp_file)
+    parsed_switch = switch_parse.ParseTextToDicts(switch_output)
+
+    if parsed_switch:
+        clean_dict = parsed_switch[0]
+        clean_dict["OS"] = "exos"
+        logging.debug("switch parsed working on ports...")
+
+    port_output = ssh_session.send_command("show ports no-refresh")
+    with open('custom_templates/exos_ports.textfsm', mode='r', newline='') as f:
+        ports_template = f.read()
+    temp_file = io.StringIO(ports_template)
+    ports_parse = textfsm.TextFSM(temp_file)
+    parsed_ports = ports_parse.ParseTextToDicts(port_output)
+
+    if parsed_ports:
+        clean_dict["ports"] = parsed_ports[0]
+    return clean_dict
+
+
+def get_cisco_data(ssh_session, raw_output):
+    clean_dict = {}
+    int_output = ssh_session.send_command("show interfaces status")
+    with open('custom_templates/cisco_version.textfsm', mode='r', newline='') as f:
+        version_template = f.read()
+    with open('custom_templates/cisco_interface.textfsm', mode='r', newline='') as f:
+        interface_template = f.read()
+
+    template_file_like = io.StringIO(version_template)
+    int_file_like = io.StringIO(interface_template)
+    fsm_engine = textfsm.TextFSM(template_file_like)
+    parse_port = textfsm.TextFSM(int_file_like)
+    parsed_info = fsm_engine.ParseText(raw_output)
+    parsed_ports = parse_port.ParseTextToDicts(int_output)
+
+    if parsed_info:
+        clean_dict.update(zip(fsm_engine.header, parsed_info[0]))
+
+    clean_dict["OS"] = "cisco_ios"
+    clean_dict["ports"] = parsed_ports
+    return clean_dict
+
+
 def get_switch_data(ssh_session):
 
     """
@@ -18,8 +67,7 @@ def get_switch_data(ssh_session):
     """
     try:
         logging.info("Detecting OS...")
-        raw_output = ssh_session.send_command("show version")
-        int_output = ssh_session.send_command("show interfaces status")
+        raw_output = ssh_session.send_command("show version", expect_string=r"#\s*$")
         # logging.debug(f"SHOW VERSION OUTPUT:\n{raw_output}")
         # logging.debug(f"SHOW INT BRIEF OUTPUT:\n {int_output}")
         clean_dict = {}
@@ -29,32 +77,21 @@ def get_switch_data(ssh_session):
             logging.info("OS fingerprint match: Cisco.  Redispatching...")
             redispatch(ssh_session, device_type="cisco_ios")
             logging.debug("Redispatch Succesfull! Extracting switch device info...")
-            with open('custom_templates/cisco_version.textfsm', mode='r', newline='') as f:
-                version_template = f.read()
-            with open('custom_templates/cisco_interface.textfsm', mode='r', newline='') as f:
-                interface_template = f.read()
 
-            template_file_like = io.StringIO(version_template)
-            int_file_like = io.StringIO(interface_template)
-            fsm_engine = textfsm.TextFSM(template_file_like)
-            parse_port = textfsm.TextFSM(int_file_like)
-            parsed_info = fsm_engine.ParseText(raw_output)
-            parsed_ports = parse_port.ParseTextToDicts(int_output)
-
-            if parsed_info:
-                clean_dict.update(zip(fsm_engine.header, parsed_info[0]))
-
-            clean_dict["OS"] = "cisco_ios"
-            clean_dict["ports"] = parsed_ports
-
+            clean_dict = get_cisco_data(ssh_session, raw_output)
             logging.debug(f"Switch info extracted with textFSM: \n {clean_dict}")
 
             return clean_dict
 
-        elif "ExtremeXOS" in raw_output:
+        elif any(system in raw_output for system in ["ExtremeXOS", "EXOS", "Switch Engine", "exos"]):
             logging.info("OS fingerprint match: EXOS.  Redispatching...")
             redispatch(ssh_session, device_type="extreme_exos")
-            return "exos"
+            logging.debug("Redispatch Succesfull! Extracting switch device info...")
+
+            clean_dict = get_exos_data(ssh_session)
+            logging.debug(f"Show switch output parsed: {clean_dict}")
+            return clean_dict
+
         elif "SLX" in raw_output:
             logging.info("OS fingerprint match: SLX-OS. Redispatching...")
             redispatch(ssh_session, device_type="extreme_slx")
@@ -67,10 +104,10 @@ def get_switch_data(ssh_session):
                 return "voss"
 
         logging.error("OS detetcion failed no fingerprints matched")
-        return None
+
     except Exception as e:
         logging.error(f"{e}")
-
+    return {"OS": "Unknown"}
 
 def get_device_data(net_connect, commands: list):
     """

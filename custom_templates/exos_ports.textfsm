@@ -1,0 +1,6 @@
+Value Required port (\d+)
+Value type (\S+)
+
+Start
+  ^${port}\s+${type}\s+[DEF]\s+(A|R|NP|L|D|d) -> Record
+  ^${port}\s+\S+.*\s+${type}\s+[DEF]\s+(A|R|NP|L|D|d) -> Record
