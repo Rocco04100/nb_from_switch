@@ -77,9 +77,10 @@ def get_device_data(ssh_session, os_templates, os_name):
     """
 
     output = {}
+    parsed_lldp = None
     os_template =os_templates.get(os_name)
 
-    logging.info("Getting connected device info from exos switch...")
+    logging.info(f"Getting connected devices info from {os_name} switch...")
     try:
         arp_cmd = os_template.get("arp_command")
         arp_template = f"config/custom_templates/{os_name}/{os_template.get("textfsm_templates").get("arp")}"
@@ -97,6 +98,8 @@ def get_device_data(ssh_session, os_templates, os_name):
             temp_file = io.StringIO(arp_template)
             arp_parse = textfsm.TextFSM(temp_file)
             parsed_arp = arp_parse.ParseTextToDicts(arp_output)
+            logging.info("Arp extraction successful!")
+            logging.debug(f"Arp data: {parsed_arp}")
         except Exception as e:
             logging.error(f"Arp data not extracted(check arp textfsm template) reason: {e}")
             raise Exception("arp extraction failed")
@@ -108,6 +111,8 @@ def get_device_data(ssh_session, os_templates, os_name):
             temp_file = io.StringIO(mac_template)
             mac_parse = textfsm.TextFSM(temp_file)
             parsed_mac = mac_parse.ParseTextToDicts(mac_output)
+            logging.info("Mac Table extraction successful!")
+            logging.debug(f"Mac Table: {parsed_mac}")
         except Exception as e:
             logging.error(f"mac table data not extracted(check mac table textfsm template) reason: {e}")
             raise Exception("mac table extraction failed")
@@ -119,20 +124,21 @@ def get_device_data(ssh_session, os_templates, os_name):
             temp_file = io.StringIO(lldp_template)
             lldp_parse = textfsm.TextFSM(temp_file)
             parsed_lldp = lldp_parse.ParseTextToDicts(lldp_output)
+            logging.info("LLDP data extraction successful!")
+            logging.debug(f"LLDP data: {parsed_lldp}")
         except Exception as e:
-            logging.error(f"lldp data not extracted(check lldp textfsm template) reason: {e}")
-            raise Exception("lldp extraction failed")
+            logging.warning(f"lldp data not extracted(check lldp textfsm template) reason: {e}")
+            logging.warning("Data will not be as accurate without lldp data as it will have to assume all connected devices are unknown endpoints")
 
         output["show arp"] = parsed_arp
         output["show mac"] = parsed_mac
-        output["show lldp neighbors details"] = parsed_lldp
+        if(parsed_lldp):
+            output["show lldp neighbors details"] = parsed_lldp
 
-        logging.info("conneceted devices collected succesfully! data saved to output/raw_output.json")
+        logging.info("Conneceted devices collected succesfully! data saved to output/raw_output.json")
         with open("output/raw_output.json", mode="w") as f:
             json.dump(output, f)
     except Exception as e:
         logging.error(f"Could not collect data from templates. Reason: {e}")
-
-
 
     return output

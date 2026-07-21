@@ -1,0 +1,5 @@
+Value mac ([0-9a-fA-F]{4}\.[0-9a-fA-F]{4}\.[0-9a-fA-F]{4})
+Value port (\S+)
+
+Start
+  ^\s*\d+\s+${mac}\s+\S+\s+${port} -> Record
