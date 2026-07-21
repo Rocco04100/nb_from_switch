@@ -78,7 +78,7 @@ def get_device_data(ssh_session, os_templates, os_name, switch_ip):
 
     output = {}
     parsed_lldp = None
-    os_template =os_templates.get(os_name)
+    os_template = os_templates.get(os_name)
 
     logging.info(f"Getting connected devices info from {os_name} switch...")
     try:
