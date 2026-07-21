@@ -7,13 +7,13 @@ def create_arp_table(arp_data):
     logging.debug(f"Arp data: {arp_data}")
     arp_table = {}
     for entry in arp_data:
-        mac = entry.get("mac_address", "")
+        mac = entry.get("mac", "")
         mac = str(mac).replace(".", "").replace(":", "").upper()
 
-        ip = entry.get("ip_address", "")
+        ip = entry.get("ip", "")
         arp_table[mac] = ip
     if not arp_table:
-        logging.error("Arp Table most likely empty")
+        logging.error("Arp Table empty")
     logging.debug(f"Arp Table created: {arp_table}" )
     return arp_table
 
@@ -21,12 +21,12 @@ def create_arp_table(arp_data):
 def create_mac_table(mac_data):
     mac_table = {}
     for entry in mac_data:
-        mac = entry.get("destination_address", "")
+        mac = entry.get("mac", "")
         if isinstance(mac, list):
             mac = mac[0] if mac else ""
         mac = str(mac).replace(".", "").replace(":", "").upper()
 
-        port = entry.get("destination_port", "")
+        port = entry.get("port", "")
         if isinstance(port, list):
             ports_to_add = [str(p) for p in port if p]
         else:
@@ -38,6 +38,10 @@ def create_mac_table(mac_data):
             for p in ports_to_add:
                 if p not in mac_table[mac]:
                     mac_table[mac].append(p)
+
+    if not mac_table:
+        logging.error("Mac Table empty")
+    logging.debug(f"Mac Table created: {mac_table}")
     return mac_table
 
 
@@ -69,6 +73,9 @@ def create_lldp_table(lldp_data):
                     "capabilities": capabilities,
                     "remote_port": remote_port
                 }
+    if not lldp_table:
+        logging.warning("LLDP table empty connected devices may not be vague")
+    logging.debug(f"LLDP table created: {lldp_table}")
     return lldp_table
 
 
@@ -161,13 +168,13 @@ def connected_devices(raw_data):
     try:
         connected_devices = []
 
-        arp_data = raw_data.get("show ip arp", "show iparp", [])
+        arp_data = raw_data.get("arp", [])
         arp_table = create_arp_table(arp_data)
 
-        mac_data = raw_data.get("show mac address-table dynamic", "show fdb", [])
+        mac_data = raw_data.get("mac", [])
         mac_table = create_mac_table(mac_data)
 
-        lldp_data = raw_data.get("show lldp neighbors detail", [])
+        lldp_data = raw_data.get("lldp", [])
         lldp_table = create_lldp_table(lldp_data)
 
 
@@ -180,7 +187,7 @@ def connected_devices(raw_data):
                 role = ""
                 device_type = ""
                 status = "active"
-                name ="MAC ARP DISCOVERED"
+                name ="UNKNOWN DISCOVERED DEVICE"
                 source="MAC_ARP"
                 remote_interface = "NIC"
 

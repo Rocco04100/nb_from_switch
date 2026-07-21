@@ -73,6 +73,7 @@ try:
     logging.info("OS templates found succesfully!")
 except Exception as e:
     logging.critical(f"os_templates.json not found in config folder aborting ERROR: {e}")
+    raise Exception("os_templates are needed to run program")
 
 """
 SWITCH CONNECTION -> GATHER AND CLEAN UP
@@ -82,32 +83,31 @@ try:
     logging.info(f"Connecting to {switch['host']}...")
     net_connect = ConnectHandler(**switch)
 
-    switch_info ={}
-    if os_templates:
-        switch_info = get_switch_data(net_connect, os_templates)
-        device_data = get_device_data(net_connect, os_templates, switch_info.get("OS"))
+    switch_data ={}
+    switch_data = get_switch_data(net_connect, os_templates)
+    device_data = get_device_data(net_connect, os_templates, switch_data.get("OS"))
 
-    # local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
-    # connected_devices = parse.connected_devices(device_data)
-    # local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
-    # if net_connect:
-    #     net_connect.disconnect()
-    #     logging.info("SSH connection closed.")
+    local_switch = parse.local_switch(net_connect, switch_data, switch["host"])
+    connected_devices = parse.connected_devices(device_data)
+
+    if net_connect:
+        net_connect.disconnect()
+        logging.info("SSH connection closed.")
 
     """
     NETBOX CONNECTION -> CALL nbapi FUNCTIONS
     """
-    # if(args.dry):
-    #     logging.info("Dry run detected - data not uploaded to netbox check outputs for results")
-    # else:
-    #     logging.info("Connecting to nb api via pynetbox...")
-    #     nb = pynetbox.api(
-    #         netbox_url,
-    #         token=netbox_token,
-    #     )
-    #     switch_device = None
-    #     if local_switch:
-    #         switch_device = nbapi.post_switch(nb, local_switch)
-    #         nbapi.post_connected_devices(nb, connected_devices, switch_device)
+    if(args.dry):
+        logging.info("Dry run detected - data not uploaded to netbox check outputs for results")
+    else:
+        logging.info("Connecting to nb api via pynetbox...")
+        nb = pynetbox.api(
+            netbox_url,
+            token=netbox_token,
+        )
+        switch_device = None
+        if local_switch:
+            switch_device = nbapi.post_switch(nb, local_switch)
+            nbapi.post_connected_devices(nb, connected_devices, switch_device)
 except Exception as e:
     logging.error(f"Unhandled error:{e}")

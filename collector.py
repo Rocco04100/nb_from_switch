@@ -130,10 +130,10 @@ def get_device_data(ssh_session, os_templates, os_name):
             logging.warning(f"lldp data not extracted(check lldp textfsm template) reason: {e}")
             logging.warning("Data will not be as accurate without lldp data as it will have to assume all connected devices are unknown endpoints")
 
-        output["show arp"] = parsed_arp
-        output["show mac"] = parsed_mac
+        output["arp"] = parsed_arp
+        output["mac"] = parsed_mac
         if(parsed_lldp):
-            output["show lldp neighbors details"] = parsed_lldp
+            output["lldp"] = parsed_lldp
 
         logging.info("Conneceted devices collected succesfully! data saved to output/raw_output.json")
         with open("output/raw_output.json", mode="w") as f:
