@@ -53,15 +53,6 @@ logging.getLogger("pynetbox").setLevel(logging.WARN)
 ###########################################
 # command and switch setup later edit to loop through ip's
 ######################################
-commands = [
-    # "show version",
-    # "show interfaces",
-    # "show ip interface brief",
-    # "show interface status",
-    "show ip arp",  # Maps IP -> MAC
-    "show mac address-table dynamic",  # Maps MAC -> Port
-    "show lldp neighbors detail",  # Identifies Network Devices
-]
 switch = {
     "device_type": "generic",
     "host": "192.168.1.2",
@@ -79,7 +70,7 @@ os_templates = {}
 try:
     with open("config/os_templates.json", 'r') as f:
         os_templates = json.load(f)
-    logging.debug(f"OS templates i see: {os_templates}")
+    logging.info("OS templates found succesfully!")
 except Exception as e:
     logging.critical(f"os_templates.json not found in config folder aborting ERROR: {e}")
 
@@ -94,18 +85,9 @@ try:
     switch_info ={}
     if os_templates:
         switch_info = get_switch_data(net_connect, os_templates)
-    local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
+        device_data = get_device_data(net_connect, os_templates, switch_info.get("OS"))
 
-    # if switch_info["OS"] == "exos":
-    #     commands = [
-    #         "show iparp",  # Maps IP -> MAC
-    #         "show fdb",  # Maps MAC -> Port
-    #         "show lldp neighbors detail",  # Identifies Network Devices
-    #     ]
-    #     logging.debug(f"Commands we will use: {commands}")
-
-    # device_data = get_device_data(net_connect, commands)
-
+    # local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
     # connected_devices = parse.connected_devices(device_data)
     # local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
     # if net_connect:
