@@ -1,0 +1,32 @@
+{
+  "cisco": {
+    "version_command": "show version",
+    "device_type": "cisco_ios",
+    "ports_command": "show interfaces status",
+    "arp_command": "show ip arp",
+    "mac_command": "show mac address-table",
+    "lldp_command": "show lldp neighbors details",
+    "textfsm_templates": {
+      "version": "cisco_version.textfsm",
+      "ports": "cisco_interface.textfsm",
+      "arp": "cisco_arp.textfsm",
+      "mac": "cisco_mac.textfsm",
+      "lldp": "cisco_lldp.textfsm"
+    }
+  },
+  "exos": {
+    "version_command": "show switch",
+    "device_type": "extreme_exos",
+    "ports_command": "show ports",
+    "arp_command": "show iparp",
+    "mac_command": "show fdb",
+    "lldp_command": "show lldp neighbors details",
+    "textfsm_templates": {
+      "version": "exos_switch.textfsm",
+      "ports": "exos_ports.textfsm",
+      "arp": "exos_iparp.textfsm",
+      "mac": "exos_fdp.textfsm",
+      "lldp": "exos_lldp.textfsm"
+    }
+  }
+}

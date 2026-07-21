@@ -2,6 +2,7 @@
 import argparse
 import logging
 import os
+import json
 
 import pynetbox
 from dotenv import load_dotenv
@@ -71,6 +72,16 @@ switch = {
     "auth_timeout": 15,
     "global_delay_factor": 2,
 }
+"""
+SETUP OS TEMPLATE JSON
+"""
+os_templates = {}
+try:
+    with open("config/os_templates.json", 'r') as f:
+        os_templates = json.load(f)
+    logging.debug(f"OS templates i see: {os_templates}")
+except Exception as e:
+    logging.critical(f"os_templates.json not found in config folder aborting ERROR: {e}")
 
 """
 SWITCH CONNECTION -> GATHER AND CLEAN UP
@@ -81,7 +92,8 @@ try:
     net_connect = ConnectHandler(**switch)
 
     switch_info ={}
-    switch_info = get_switch_data(net_connect)
+    if os_templates:
+        switch_info = get_switch_data(net_connect, os_templates)
     local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
 
     # if switch_info["OS"] == "exos":
@@ -92,42 +104,28 @@ try:
     #     ]
     #     logging.debug(f"Commands we will use: {commands}")
 
-    device_data = get_device_data(net_connect, commands)
+    # device_data = get_device_data(net_connect, commands)
 
-    connected_devices = parse.connected_devices(device_data)
-    local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
-    if net_connect:
-        net_connect.disconnect()
-        logging.info("SSH onnection closed.")
+    # connected_devices = parse.connected_devices(device_data)
+    # local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
+    # if net_connect:
+    #     net_connect.disconnect()
+    #     logging.info("SSH connection closed.")
 
     """
     NETBOX CONNECTION -> CALL nbapi FUNCTIONS
     """
-    if(args.dry):
-        logging.info("Dry run detected - data not uploaded to netbox check outputs for results")
-    else:
-        logging.info("Connecting to nb api via pynetbox...")
-        nb = pynetbox.api(
-            netbox_url,
-            token=netbox_token,
-        )
-        switch_device = None
-        if local_switch:
-            switch_device = nbapi.post_switch(nb, local_switch)
-            nbapi.post_connected_devices(nb, connected_devices, switch_device)
-# #
-#
-#
-# test spot
-#
-# device_info = {
-#         "name": "BOB TEST SWITCH",
-#         "site": {"name": "D. S. Weaver Labs"},
-#         "device_type": {"model": "some cisco"},
-#         "role": {"name": "Access Switch"},
-#         "status": "active",
-
-#     }
-#     nbapi.post_switch(nb, device_info)
+    # if(args.dry):
+    #     logging.info("Dry run detected - data not uploaded to netbox check outputs for results")
+    # else:
+    #     logging.info("Connecting to nb api via pynetbox...")
+    #     nb = pynetbox.api(
+    #         netbox_url,
+    #         token=netbox_token,
+    #     )
+    #     switch_device = None
+    #     if local_switch:
+    #         switch_device = nbapi.post_switch(nb, local_switch)
+    #         nbapi.post_connected_devices(nb, connected_devices, switch_device)
 except Exception as e:
     logging.error(f"Unhandled error:{e}")

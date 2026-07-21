@@ -161,10 +161,10 @@ def connected_devices(raw_data):
     try:
         connected_devices = []
 
-        arp_data = raw_data.get("show ip arp", [])
+        arp_data = raw_data.get("show ip arp", "show iparp", [])
         arp_table = create_arp_table(arp_data)
 
-        mac_data = raw_data.get("show mac address-table dynamic", [])
+        mac_data = raw_data.get("show mac address-table dynamic", "show fdb", [])
         mac_table = create_mac_table(mac_data)
 
         lldp_data = raw_data.get("show lldp neighbors detail", [])
