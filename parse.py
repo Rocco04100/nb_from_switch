@@ -136,7 +136,7 @@ def local_switch(net_connect, switch_info, ip_address):
 
     switch_info = {
         "name": switch_name,
-        "site": {"slug": site},
+        "site": {"name": site},
         "device_type": {"model": device_type},
         "role": {"name": role},
         "status": status,
@@ -147,15 +147,15 @@ def local_switch(net_connect, switch_info, ip_address):
         "_ports": ports,
     }
 
-    with open("output/local_switch.json", "w") as f:
+    with open(f"output/{ip_address}_local_switch.json", "w") as f:
         json.dump(switch_info, f, indent=4)
     logging.info(
-        "Local switch parsed for netbox upload! Data saved to local_switch.json"
+        f"Local switch parsed for netbox upload! Data saved to output/{ip_address}_local_switch.json"
     )
     return switch_info
 
 
-def connected_devices(raw_data):
+def connected_devices(raw_data, switch_ip):
     """
     #######################################################################################
     Correlates ARP, MAC Table, and LLDP data to form json for nb import
@@ -224,7 +224,7 @@ def connected_devices(raw_data):
                 if not missing:
                     device_info = {
                         "name": name,
-                        "site": {"slug": site},
+                        "site": {"name": site},
                         "device_type": {"model": device_type},
                         "role": {"name": role},
                         "status": status,
@@ -247,10 +247,10 @@ def connected_devices(raw_data):
                     )
 
         if connected_devices:
-            with open("output/connected_devices.json", "w") as f:
+            with open(f"output/{switch_ip}_connected_devices.json", "w") as f:
                 json.dump(connected_devices, f, indent=4)
             logging.info(
-                "Connected Devices parsing successful! Data saved to connected_devices.json"
+                f"Connected Devices parsing successful! Data saved to output/{switch_ip}_connected_devices.json"
             )
         return connected_devices
     except Exception as e:

@@ -67,7 +67,7 @@ def get_switch_data(ssh_session, os_templates):
     return clean_dict
 
 
-def get_device_data(ssh_session, os_templates, os_name):
+def get_device_data(ssh_session, os_templates, os_name, switch_ip):
     """
     ###############################################################
     Accepts an active ssh connection the os template of the oper
@@ -135,9 +135,10 @@ def get_device_data(ssh_session, os_templates, os_name):
         if(parsed_lldp):
             output["lldp"] = parsed_lldp
 
-        logging.info("Conneceted devices collected succesfully! data saved to output/raw_output.json")
-        with open("output/raw_output.json", mode="w") as f:
+
+        with open(f"output/{switch_ip}_raw_output.json", mode="w") as f:
             json.dump(output, f)
+            logging.info(f"Conneceted devices collected succesfully! data saved to output/{switch_ip}_raw_output.json")
     except Exception as e:
         logging.error(f"Could not collect data from templates. Reason: {e}")
 
