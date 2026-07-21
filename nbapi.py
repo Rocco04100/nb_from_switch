@@ -141,6 +141,7 @@ def post_switch(nb, switchdict):
         logging.info("Getting or creating switch interfaces...")
         for port in ports_list[1:]:
             get_or_create_interface(nb, switch_posted, port["port"], port["type"])
+        logging.info("Interfaces checked/created!")
         return switch_posted
     logging.debug("Switch not posted not checking interfaces returning none")
     return None
@@ -183,10 +184,10 @@ def get_or_create_interface(nb, device, name, iface_type="other"):
 
     interface = nb.dcim.interfaces.get(device_id=device.id, name=name)
     if interface:
-        logging.info("Interface found! No need to create")
+        logging.debug("Interface found! No need to create")
         return interface
 
-    logging.info(f"Interface '{name}' not found on '{device.name}'. Creating it...")
+    logging.debug(f"Interface '{name}' not found on '{device.name}'. Creating it...")
     try:
         return nb.dcim.interfaces.create(device=device.id, name=name, type=iface_type)
     except pynetbox.RequestError as e:

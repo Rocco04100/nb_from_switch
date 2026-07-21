@@ -4,6 +4,7 @@ import nb_utils
 
 
 def create_arp_table(arp_data):
+    logging.debug(f"Arp data: {arp_data}")
     arp_table = {}
     for entry in arp_data:
         mac = entry.get("mac_address", "")
@@ -13,6 +14,7 @@ def create_arp_table(arp_data):
         arp_table[mac] = ip
     if not arp_table:
         logging.error("Arp Table most likely empty")
+    logging.debug(f"Arp Table created: {arp_table}" )
     return arp_table
 
 
@@ -84,6 +86,7 @@ def parse_ports(ports):
 
       return ports
 
+
 def local_switch(net_connect, switch_info, ip_address):
     """
     #######################################################################################
@@ -105,6 +108,11 @@ def local_switch(net_connect, switch_info, ip_address):
     site = nb_utils.get_site(ip_address)
     ports = parse_ports(switch_info["ports"])
 
+    if switch_info["serial"]:
+        serial = switch_info["serial"]
+    else:
+        serial = ""
+
     checks = {
         "name": switch_name,
         "site": site,
@@ -121,14 +129,14 @@ def local_switch(net_connect, switch_info, ip_address):
 
     switch_info = {
         "name": switch_name,
-        "site": {"name": site},
+        "site": {"slug": site},
         "device_type": {"model": device_type},
         "role": {"name": role},
         "status": status,
-        "serial": switch_info["serial"],
+        "serial": serial,
         # "cf_ip_address": ip_address,############################################# UNCOMMENT when on real netbox
-        # "cf_mac_address": mac_address,
-        "description": f"Info from script -> | mac_address:{switch_info["mac_address"]} | OS:{switch_info["OS"]}",
+        # "cf_mac": mac,
+        "description": f"Info from script -> | mac:{switch_info["mac"]} | OS:{switch_info["OS"]}",
         "_ports": ports,
     }
 
@@ -209,12 +217,12 @@ def connected_devices(raw_data):
                 if not missing:
                     device_info = {
                         "name": name,
-                        "site": {"name": site},
+                        "site": {"slug": site},
                         "device_type": {"model": device_type},
                         "role": {"name": role},
                         "status": status,
                         # "switch_port": port,
-                        # "cf_mac_address": ":".join([mac[i : i + 2] for i in range(0, 12, 2)]),
+                        # "cf_mac": ":".join([mac[i : i + 2] for i in range(0, 12, 2)]),
                         # "cf_ip_address": ip_address,
                         # "cf_installation_date": "1900-1-1",
                         "description": f"Discovered via {source} correlation",

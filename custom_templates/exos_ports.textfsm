@@ -1,6 +1,8 @@
-Value Required port (\d+)
+Value port (\d+)
 Value type (\S+)
 
 Start
-  ^${port}\s+${type}\s+[DEF]\s+(A|R|NP|L|D|d) -> Record
-  ^${port}\s+\S+.*\s+${type}\s+[DEF]\s+(A|R|NP|L|D|d) -> Record
+  # Skip headers and start recording when a line begins with a number
+  ^${port}\s+(?:\S+\s+)?${type}\s+[A-Z]\s+[A-Z\d] -> Record
+  # Ignore all other lines safely without crashing or ending early
+  ^.*

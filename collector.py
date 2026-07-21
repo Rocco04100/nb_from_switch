@@ -28,7 +28,7 @@ def get_exos_data(ssh_session):
     parsed_ports = ports_parse.ParseTextToDicts(port_output)
 
     if parsed_ports:
-        clean_dict["ports"] = parsed_ports[0]
+        clean_dict["ports"] = parsed_ports
     return clean_dict
 
 
@@ -68,28 +68,26 @@ def get_switch_data(ssh_session):
     try:
         logging.info("Detecting OS...")
         raw_output = ssh_session.send_command("show version", expect_string=r"#\s*$")
-        # logging.debug(f"SHOW VERSION OUTPUT:\n{raw_output}")
-        # logging.debug(f"SHOW INT BRIEF OUTPUT:\n {int_output}")
         clean_dict = {}
 
 
         if "cisco" in raw_output:
             logging.info("OS fingerprint match: Cisco.  Redispatching...")
             redispatch(ssh_session, device_type="cisco_ios")
-            logging.debug("Redispatch Succesfull! Extracting switch device info...")
+            logging.info("Redispatch Succesfull! Extracting switch device info...")
 
-            clean_dict = get_cisco_data(ssh_session, raw_output)
-            logging.debug(f"Switch info extracted with textFSM: \n {clean_dict}")
+            clean_dict = get_cisco_data(ssh_session, raw_output) #uses the raw ouput because cisco is cool
+            logging.debug(f"Switch info collected: \n {clean_dict}")
 
             return clean_dict
 
         elif any(system in raw_output for system in ["ExtremeXOS", "EXOS", "Switch Engine", "exos"]):
             logging.info("OS fingerprint match: EXOS.  Redispatching...")
             redispatch(ssh_session, device_type="extreme_exos")
-            logging.debug("Redispatch Succesfull! Extracting switch device info...")
+            logging.info("Redispatch Succesfull! Extracting switch device info...")
 
-            clean_dict = get_exos_data(ssh_session)
-            logging.debug(f"Show switch output parsed: {clean_dict}")
+            clean_dict = get_exos_data(ssh_session) # has its own commands to run for outputs because extreme stinks
+            logging.debug(f"Switch info collected: {clean_dict}")
             return clean_dict
 
         elif "SLX" in raw_output:
@@ -108,6 +106,7 @@ def get_switch_data(ssh_session):
     except Exception as e:
         logging.error(f"{e}")
     return {"OS": "Unknown"}
+
 
 def get_device_data(net_connect, commands: list):
     """

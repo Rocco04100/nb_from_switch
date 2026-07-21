@@ -63,9 +63,9 @@ commands = [
 ]
 switch = {
     "device_type": "generic",
-    "host": "192.168.1.5",
+    "host": "192.168.1.2",
     "username": "admin",
-    "password": "",
+    "password": "password1",
     # "secret": "",
     "conn_timeout": 15,
     "auth_timeout": 15,
@@ -82,39 +82,39 @@ try:
 
     switch_info ={}
     switch_info = get_switch_data(net_connect)
+    local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
 
-    if switch_info["OS"] == "exos":
-        commands = {
-            "show iparp",  # Maps IP -> MAC
-            "show fdb",  # Maps MAC -> Port
-            "show lldp neighbors detail",  # Identifies Network Devices
-        }
-        logging.debug(f"commands we will use: {commands}")
+    # if switch_info["OS"] == "exos":
+    #     commands = [
+    #         "show iparp",  # Maps IP -> MAC
+    #         "show fdb",  # Maps MAC -> Port
+    #         "show lldp neighbors detail",  # Identifies Network Devices
+    #     ]
+    #     logging.debug(f"Commands we will use: {commands}")
 
-#     device_data = get_device_data(net_connect, commands)
+    device_data = get_device_data(net_connect, commands)
 
-#     connected_devices = parse.connected_devices(device_data)
-#     local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
-#     if net_connect:
-#         net_connect.disconnect()
-#         logging.info("Connection closed.")
+    connected_devices = parse.connected_devices(device_data)
+    local_switch = parse.local_switch(net_connect, switch_info, switch["host"])
+    if net_connect:
+        net_connect.disconnect()
+        logging.info("SSH onnection closed.")
 
-#     """
-#     NETBOX CONNECTION -> CALL nbapi FUNCTIONS
-#     """
-#     if(args.dry):
-#         logging.info("Dry run detected - data not uploaded to netbox check outputs for results")
-#     else:
-#         logging.info("Connecting to nb api via pynetbox...")
-#         nb = pynetbox.api(
-#             netbox_url,
-#             token=netbox_token,
-#         )
-#         switch_device = None
-#         if local_switch:
-#             switch_device = nbapi.post_switch(nb, local_switch)
-#         if connected_devices:
-#             nbapi.post_connected_devices(nb, connected_devices, switch_device)
+    """
+    NETBOX CONNECTION -> CALL nbapi FUNCTIONS
+    """
+    if(args.dry):
+        logging.info("Dry run detected - data not uploaded to netbox check outputs for results")
+    else:
+        logging.info("Connecting to nb api via pynetbox...")
+        nb = pynetbox.api(
+            netbox_url,
+            token=netbox_token,
+        )
+        switch_device = None
+        if local_switch:
+            switch_device = nbapi.post_switch(nb, local_switch)
+            nbapi.post_connected_devices(nb, connected_devices, switch_device)
 # #
 #
 #
