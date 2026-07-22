@@ -49,16 +49,12 @@ def create_lldp_table(lldp_data):
     lldp_table = {}
     if isinstance(lldp_data, list):
         for neighbor in lldp_data:
-            remote_host = neighbor.get("neighbor", "")
+            remote_host = neighbor.get("hostname", "")
 
-            local_port = str(neighbor.get("local_interface", ""))
+            local_port = str(neighbor.get("local_port", ""))
 
             remote_port = (
-                neighbor.get("neighbor_interface")
-                or neighbor.get("neighbor_port_id")
-                or neighbor.get("remote_interface")
-                or ""
-            )
+                neighbor.get("neighbor_port", "NIC"))
 
 
             capabilities = neighbor.get("capabilities", "")
@@ -74,7 +70,7 @@ def create_lldp_table(lldp_data):
                     "remote_port": remote_port
                 }
     if not lldp_table:
-        logging.warning("LLDP table empty connected devices may not be vague")
+        logging.warning("LLDP table empty connected devices may be vague")
     logging.debug(f"LLDP table created: {lldp_table}")
     return lldp_table
 
@@ -104,21 +100,18 @@ def local_switch(net_connect, switch_info, ip_address):
     logging.info("Parsing local switch for netbox...")
 
     try:
-           switch_name = net_connect.find_prompt().strip("#>")
+           switch_name = net_connect.find_prompt().strip("#> ")
     except Exception as e:
             logging.error(f"Could not read switch prompt: {e}")
             switch_name = None
 
-    role = "Core Switch"
+    role = "Switch"
     device_type = switch_info["model"]
     status = "active"
     site = nb_utils.get_site(ip_address)
     ports = parse_ports(switch_info["ports"])
+    serial = switch_info.get("serial", "")
 
-    if switch_info["serial"]:
-        serial = switch_info["serial"]
-    else:
-        serial = ""
 
     checks = {
         "name": switch_name,
@@ -140,12 +133,13 @@ def local_switch(net_connect, switch_info, ip_address):
         "device_type": {"model": device_type},
         "role": {"name": role},
         "status": status,
-        "serial": serial,
         # "cf_ip_address": ip_address,############################################# UNCOMMENT when on real netbox
         # "cf_mac": mac,
         "description": f"Info from script -> | mac:{switch_info["mac"]} | OS:{switch_info["OS"]}",
         "_ports": ports,
     }
+    if serial:
+        switch_info["serial"] = serial
 
     with open(f"output/{ip_address}_local_switch.json", "w") as f:
         json.dump(switch_info, f, indent=4)

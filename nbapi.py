@@ -105,7 +105,7 @@ def post_device(nb, devicedict):
 
                 local_name = get_relation_name(local_value)
                 server_name = get_relation_name(server_attr)
-                if str(server_name).casefold() == str(local_name).casefold():
+                if str(server_name).casefold().strip() == str(local_name).casefold().strip():
                     continue
                 logging.info(
                     f"Mismatch found in {key}: "
@@ -139,7 +139,7 @@ def post_switch(nb, switchdict):
     switch_posted = post_device(nb, switchdict)
     if (switch_posted):
         logging.info("Getting or creating switch interfaces...")
-        for port in ports_list[1:]:
+        for port in ports_list:
             get_or_create_interface(nb, switch_posted, port["port"], port["type"])
         logging.info("Interfaces checked/created!")
         return switch_posted

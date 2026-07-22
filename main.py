@@ -16,7 +16,10 @@ import parse
 load_dotenv()
 netbox_url = os.getenv("NETBOX_URL")
 netbox_token = os.getenv("NETBOX_TOKEN")
-if not netbox_url or not netbox_token:
+switch_user = os.getenv("SWITCH_USER")
+switch_password = os.getenv("SWITCH_PASSWORD")
+
+if not netbox_url or not netbox_token or not switch_user:
     raise ValueError("Missing netbox credentials! check you .env file")
 ###########################################
 # argparse setup
@@ -77,25 +80,25 @@ logging.debug(f"ARGS DETECTED: {args}")
 logging.info("Loop start")
 for switch in switch_list:
     ip_address = switch["ip_address"]
-    switch = {
+    connection_params = {
         "device_type": "generic",
         "host": ip_address,
-        "username": "admin",
-        "password": "password1",
+        "username": switch_user,
+        "password": switch_password,
         # "secret": "",
         "conn_timeout": 15,
         "auth_timeout": 15,
         "global_delay_factor": 2,
     }
     try:
-        logging.info(f"Connecting to {switch['host']}...")
-        net_connect = ConnectHandler(**switch)
+        logging.info(f"Connecting to {connection_params['host']}...")
+        net_connect = ConnectHandler(**connection_params)
 
         switch_data ={}
         switch_data = get_switch_data(net_connect, os_templates)
         device_data = get_device_data(net_connect, os_templates, switch_data.get("OS"), ip_address)
 
-        local_switch = parse.local_switch(net_connect, switch_data, switch["host"])
+        local_switch = parse.local_switch(net_connect, switch_data, connection_params["host"])
         connected_devices = parse.connected_devices(device_data, ip_address)
 
         if net_connect:

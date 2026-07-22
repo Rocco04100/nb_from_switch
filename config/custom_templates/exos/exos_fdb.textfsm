@@ -1,0 +1,5 @@
+Value mac ([0-9a-fA-F:]{17})
+Value port (\S+)
+
+Start
+  ^${mac}\s+\S+\s+\d+\s+\S+\s+${port}

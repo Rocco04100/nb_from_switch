@@ -21,46 +21,57 @@ def get_switch_data(ssh_session, os_templates):
     try:
         logging.info("Detecting OS...")
         raw_output = ssh_session.send_command("show version", expect_string=r"#\s*$")
-        for os_name in os_templates.keys():
-            if os_name in raw_output:
-                logging.info(f"OS fingerprint match: {os_name}.  Redispatching...")
+        os_name = ""
+        for os in os_templates.keys():
+            if os in raw_output:
+                logging.info(f"OS fingerprint match: {os}.  Redispatching...")
+                os_name = os
+        if os_name == "":
+            raw_output = ssh_session.send_command("show switch", expect_string=r"#\s*$")
+            for os in os_templates.keys():
+                if os in raw_output:
+                    logging.info(f"OS fingerprint match: {os}.  Redispatching...")
+                    os_name = os
+        elif os_name == "":
+            logging.error("SWITCH OPERATING SYSTEM NOT DETECTED -> make sure the name is correct in os_templates.json as that is what is searched for")
+            return clean_dict
+        try:
+             os_template = os_templates.get(os_name)
+             netmiko_type = os_template.get("device_type")
+             redispatch(ssh_session, device_type=netmiko_type)
+             logging.info("Redispatch Successful! Extracting switch device info...")
 
-                try:
-                    os_template = os_templates.get(os_name)
-                    netmiko_type = os_template.get("device_type")
-                    redispatch(ssh_session, device_type=netmiko_type)
-                    logging.info("Redispatch Successful! Extracting switch device info...")
+             version_cmd = os_template.get("version_command")
+             version_textfsm = f"config/custom_templates/{os_name}/{os_template.get("textfsm_templates").get("version")}"
+             switch_output = ssh_session.send_command(version_cmd)
 
-                    version_cmd = os_template.get("version_command")
-                    version_textfsm = f"config/custom_templates/{os_name}/{os_template.get("textfsm_templates").get("version")}"
-                    switch_output = ssh_session.send_command(version_cmd)
+             if switch_output:
+                 with open(version_textfsm, mode='r', newline='') as f:
+                     template = f.read()
+                 temp_file = io.StringIO(template)
+                 switch_parse = textfsm.TextFSM(temp_file)
+                 parsed_switch = switch_parse.ParseTextToDicts(switch_output)
+                 clean_dict = parsed_switch[0]
+                 clean_dict["OS"] = os_name
 
-                    if switch_output:
-                        with open(version_textfsm, mode='r', newline='') as f:
-                            template = f.read()
-                        temp_file = io.StringIO(template)
-                        switch_parse = textfsm.TextFSM(temp_file)
-                        parsed_switch = switch_parse.ParseTextToDicts(switch_output)
-                        clean_dict = parsed_switch[0]
-                        clean_dict["OS"] = os_name
+             ports_cmd = os_template.get("ports_command")
+             ports_textfsm = f"config/custom_templates/{os_name}/{os_template.get("textfsm_templates").get("ports")}"
 
-                    ports_cmd = os_template.get("ports_command")
-                    ports_textfsm = f"config/custom_templates/{os_name}/{os_template.get("textfsm_templates").get("ports")}"
+             port_output = ssh_session.send_command(ports_cmd)
+             with open(ports_textfsm, mode='r', newline='') as f:
+                 ports_template = f.read()
+             temp_file = io.StringIO(ports_template)
+             ports_parse = textfsm.TextFSM(temp_file)
+             parsed_ports = ports_parse.ParseTextToDicts(port_output)
+             logging.debug(f"PORTS FOUND: {parsed_ports}")
+             if parsed_ports:
+                 clean_dict["ports"] = parsed_ports
+             logging.info("Switch data collection successful!")
+             logging.debug(f"switch data collected: {clean_dict}")
+             return clean_dict
 
-                    port_output = ssh_session.send_command(ports_cmd)
-                    with open(ports_textfsm, mode='r', newline='') as f:
-                        ports_template = f.read()
-                    temp_file = io.StringIO(ports_template)
-                    ports_parse = textfsm.TextFSM(temp_file)
-                    parsed_ports = ports_parse.ParseTextToDicts(port_output)
-                    if parsed_ports:
-                        clean_dict["ports"] = parsed_ports
-                    logging.info("Switch data collection successful!")
-                    logging.debug(f"switch data collected: {clean_dict}")
-                    return clean_dict
-
-                except Exception as e:
-                    logging.error(f"Redispatch failed reason: {e}")
+        except Exception as e:
+             logging.error(f"Redispatch failed reason: {e}")
 
     except Exception as e:
         logging.error(f"{e}")

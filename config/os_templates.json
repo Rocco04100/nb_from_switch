@@ -17,7 +17,7 @@
   "exos": {
     "version_command": "show switch",
     "device_type": "extreme_exos",
-    "ports_command": "show ports",
+    "ports_command": "show ports no-refresh",
     "arp_command": "show iparp",
     "mac_command": "show fdb",
     "lldp_command": "show lldp neighbors details",
@@ -25,7 +25,7 @@
       "version": "exos_switch.textfsm",
       "ports": "exos_ports.textfsm",
       "arp": "exos_iparp.textfsm",
-      "mac": "exos_fdp.textfsm",
+      "mac": "exos_fdb.textfsm",
       "lldp": "exos_lldp.textfsm"
     }
   }
