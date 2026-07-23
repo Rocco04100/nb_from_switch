@@ -1,83 +1,27 @@
 #!/home/noc/Desktop/nb_from_switch/.venv/bin/python3
-import argparse
 import logging
-import os
-import json
-import csv
-
 import pynetbox
-from dotenv import load_dotenv
 from netmiko import ConnectHandler
 
 from collector import get_device_data, get_switch_data
 import nbapi
 import parse
+import startup
 
-load_dotenv()
-netbox_url = os.getenv("NETBOX_URL")
-netbox_token = os.getenv("NETBOX_TOKEN")
-switch_user = os.getenv("SWITCH_USER")
-switch_password = os.getenv("SWITCH_PASSWORD")
+configs = startup.initialize()
+logging.debug("configs")
+args = configs.get("args", "")
+os_templates = configs.get("os_templates", "")
+switch_list = configs.get("switch_list", "")
+switch_user = configs.get("creds", "").get("switch_user", "")
+switch_password = configs.get("creds", "").get("switch_password", "")
+netbox_url = configs.get("creds", "").get("netbox_url", "")
+netbox_token = configs.get("creds", "").get("netbox_token", "")
 
-if not netbox_url or not netbox_token or not switch_user:
-    raise ValueError("Missing netbox credentials! check you .env file")
-###########################################
-# argparse setup
-######################################
-parser = argparse.ArgumentParser(
-    description="Loops through given IP's and gathers data for netbox"
-)
-parser.add_argument(
-    "-l",
-    "--log",
-    default="INFO",
-    choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-    type=str.upper,
-    help="Set the level of logs you see the higher the level the less logs you see(debug shows all)",
-)
-parser.add_argument(
-    "-d",
-    "--dry",
-    action="store_true",
-    help="Will not post to netbox check output file json's for what would be posted",
-)
-args = parser.parse_args()
-###########################################
-# Logging setup
-######################################
-logging.basicConfig(
-    level=getattr(logging, args.log),
-    format="%(asctime)s %(module)s %(levelname)s - %(message)s",
-)
-logging.getLogger("netmiko").setLevel(logging.WARN)
-logging.getLogger("paramiko").setLevel(logging.WARN)
-logging.getLogger("pynetbox").setLevel(logging.WARN)
 
-"""
-SETUP CONFIGS NEEDED
-"""
-os_templates = {}
-try:
-    with open("config/os_templates.json", 'r') as f:
-        os_templates = json.load(f)
-    logging.info("OS templates found succesfully!")
-except Exception as e:
-    logging.critical(f"os_templates.json not found in config folder aborting ERROR: {e}")
-    raise Exception("os_templates are needed to run script")
-
-try:
-    with open("config/switches.csv", mode="r") as f:
-        reader = csv.DictReader(f)
-        switch_list = list(reader)
-    logging.debug(f"Switch ip's found: {switch_list}")
-except Exception as e:
-    logging.critical("Switch ip's not found in config folder aborting...")
-    raise Exception(e)
-"""
-SWITCH CONNECTION -> GATHER AND CLEAN UP
-"""
 logging.debug(f"ARGS DETECTED: {args}")
 logging.info("Loop start")
+
 for switch in switch_list:
     ip_address = switch["ip_address"]
     connection_params = {
@@ -91,6 +35,9 @@ for switch in switch_list:
         "global_delay_factor": 2,
     }
     try:
+        """
+        SWITCH CONNECTION -> GATHER AND CLEAN UP
+        """
         logging.info(f"Connecting to {connection_params['host']}...")
         net_connect = ConnectHandler(**connection_params)
 
