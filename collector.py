@@ -145,12 +145,14 @@ def get_device_data(ssh_session, os_templates, os_name, switch_ip):
         output["mac"] = parsed_mac
         if(parsed_lldp):
             output["lldp"] = parsed_lldp
+    except Exception as e:
+        logging.error(f"Could not collect data from templates. Reason: {e}")
 
-
+    try:
         with open(f"output/{switch_ip}_raw_output.json", mode="w") as f:
             json.dump(output, f)
             logging.info(f"Conneceted devices collected succesfully! data saved to output/{switch_ip}_raw_output.json")
     except Exception as e:
-        logging.error(f"Could not collect data from templates. Reason: {e}")
+        logging.warning(f"Unable to create json make sure a folder named output is in project Reason: {e}")
 
     return output

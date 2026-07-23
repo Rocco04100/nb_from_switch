@@ -112,48 +112,57 @@ def local_switch(net_connect, switch_info, ip_address):
             logging.error(f"Could not read switch prompt: {e}")
             switch_name = None
 
-    role = "Switch"
-    device_type = switch_info["model"]
-    status = "active"
-    site = nb_utils.get_site(ip_address)
-    ports = parse_ports(switch_info["ports"])
-    serial = switch_info.get("serial", "")
+    switch_parsed ={}
+
+    try:
+        role = "Switch"
+        device_type = switch_info["model"]
+        status = "active"
+        site = nb_utils.get_site(ip_address)
+        ports = parse_ports(switch_info["ports"])
+        serial = switch_info.get("serial", "")
 
 
-    checks = {
-        "name": switch_name,
-        "site": site,
-        "device_type": device_type,
-        "role": role,
-        "status": status,
-    }
-    missing = [k for k, v in checks.items() if not v]
-    if missing:
-        logging.error(
-            f"Missing fields [{', '.join(missing)}] cannot upload local switch"
-        )
-        return None
+        checks = {
+            "name": switch_name,
+            "site": site,
+            "device_type": device_type,
+            "role": role,
+            "status": status,
+        }
+        missing = [k for k, v in checks.items() if not v]
+        if missing:
+            logging.error(
+                f"Missing fields [{', '.join(missing)}] cannot upload local switch"
+            )
+            return None
 
-    switch_info = {
-        "name": switch_name,
-        "site": {"name": site},
-        "device_type": {"model": device_type},
-        "role": {"name": role},
-        "status": status,
-        # "cf_ip_address": ip_address,############################################# UNCOMMENT when on real netbox
-        # "cf_mac": mac,
-        "description": f"Info from script -> | mac:{switch_info["mac"]} | OS:{switch_info["OS"]}",
-        "_ports": ports,
-    }
-    if serial:
-        switch_info["serial"] = serial
+        switch_parsed = {
+            "name": switch_name,
+            "site": {"name": site},
+            "device_type": {"model": device_type},
+            "role": {"name": role},
+            "status": status,
+            # "cf_ip_address": ip_address,############################################# UNCOMMENT when on real netbox
+            # "cf_mac": mac,
+            "description": f"Info from script -> | mac:{switch_info["mac"]} | OS:{switch_info["OS"]}",
+            "_ports": ports,
+        }
+        if serial:
+            switch_parsed["serial"] = serial
 
-    with open(f"output/{ip_address}_local_switch.json", "w") as f:
-        json.dump(switch_info, f, indent=4)
-    logging.info(
-        f"Local switch parsed for netbox upload! Data saved to output/{ip_address}_local_switch.json"
-    )
-    return switch_info
+        try:
+            with open(f"output/{ip_address}_local_switch.json", "w") as f:
+                json.dump(switch_parsed, f, indent=4)
+            logging.info(
+                f"Local switch parsed for netbox upload! Data saved to output/{ip_address}_local_switch.json"
+            )
+        except Exception as e:
+            logging.error(f"Could not create parsed for nb upload json make sure output folder is in project Reason: {e}")
+    except Exception as e:
+        logging.error(f"Unable to parse local switch for netbox Reason: {e}")
+        raise Exception(e)
+    return switch_parsed
 
 
 def connected_devices(raw_data, switch_ip):
@@ -165,9 +174,10 @@ def connected_devices(raw_data, switch_ip):
     """
 
     logging.info("Parsing connected devices for netbox...")
+    connected_devices = []
 
     try:
-        connected_devices = []
+
 
         arp_data = raw_data.get("arp", [])
         arp_table = create_arp_table(arp_data)
@@ -236,13 +246,16 @@ def connected_devices(raw_data, switch_ip):
                         f"Missing Fields [{', '.join(missing)}]"
                         f"cannot upload device with ip: {ip_address}, port: {port}"
                     )
+        try:
+            if connected_devices:
+                with open(f"output/{switch_ip}_connected_devices.json", "w") as f:
+                    json.dump(connected_devices, f, indent=4)
+                logging.info(
+                    f"Connected Devices parsing successful! Data saved to output/{switch_ip}_connected_devices.json"
+                )
+        except Exception as e:
+            raise Exception(f"Unable to create output json for local switch make sure you have output folder in project: {e}")
 
-        if connected_devices:
-            with open(f"output/{switch_ip}_connected_devices.json", "w") as f:
-                json.dump(connected_devices, f, indent=4)
-            logging.info(
-                f"Connected Devices parsing successful! Data saved to output/{switch_ip}_connected_devices.json"
-            )
-        return connected_devices
     except Exception as e:
         logging.error(e)
+    return connected_devices
