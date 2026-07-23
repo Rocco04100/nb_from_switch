@@ -1,4 +1,5 @@
 import logging
+from os import name
 import pynetbox
 import ipaddress
 
@@ -79,61 +80,141 @@ def post_device(nb, devicedict):
     Generic create-or-update for a single NetBox device dict.
     Used for both the local switch and each discovered connected device.
     """
-    devicedict = resolve_relations(nb, devicedict)
-    logging.debug(f"device dict: {devicedict}")
-
-
-    if devicedict is None:
-        logging.error("Skipping device upload: could not resolve required relations")
-        return None
-
-    devicedict = {k: v for k, v in devicedict.items() if not k.startswith("_")}
-
-    logging.info(f"Uploading device '{devicedict.get('name')}' to nb")
-    logging.debug(f"The dict we are uploading: {devicedict}")
-
     try:
-        search_results = nb.dcim.devices.filter(name=devicedict["name"])
-        results_list = list(search_results)
-        existing_device = results_list[0] if results_list else None
+            # 1. Look up by name
+            search_results = nb.dcim.devices.filter(name=devicedict["name"])
+            results_list = list(search_results)
 
-        if existing_device:
-            logging.info(f"'{devicedict['name']}' already exists. Checking differences...")
-            needs_update = False
-            for key, local_value in devicedict.items():
-                server_attr = getattr(existing_device, key, None)
+            # 2. FIX: Look up by MAC address with a keyword argument
+            if not results_list and devicedict.get("cf_mac_address"):
+                search_results = nb.dcim.devices.filter(devicedict["cf_mac_address"])
+                results_list = list(search_results)
 
-                local_name = get_relation_name(local_value)
-                server_name = get_relation_name(server_attr)
-                if str(server_name).casefold().strip() == str(local_name).casefold().strip():
-                    continue
-                if any(x in str(local_name).lower() for x in ("unknown", "discovered")):
-                    logging.debug("Mismatch found but server is better")
-                    continue
-                logging.info(
-                    f"Mismatch found in {key}: "
-                    f"Local is '{local_name}', Server is '{server_name}'"
-                )
-                setattr(existing_device, key, local_value)
-                needs_update = True
+            existing_device = results_list[0] if results_list else None
 
-            if needs_update:
-                existing_device.save()
-                logging.info("Updated succesfully!")
-            else:
-                logging.info("Everything matches! No update needed")
-            return existing_device
+            if existing_device:
+                logging.info(f"'{devicedict['name']}' already exists as {getattr(existing_device, 'name', None)}. Checking differences...")
 
-        device = nb.dcim.devices.create(devicedict)
-        logging.info(f"'{devicedict['name']}' succesfully uploaded to nb!")
-        logging.debug(f"Uploaded device -> id: {device.id}, url: {device.url}")
-        return device
+                # Track pending updates in a dictionary instead of using setattr directly
+                changes_to_apply = {}
+
+                for key, local_value in devicedict.items():
+                    server_attr = getattr(existing_device, key, None)
+
+                    # Standardize values using your helper function
+                    local_name = get_relation_name(local_value)
+                    server_name = get_relation_name(server_attr)
+
+                    # Check for matches
+                    if str(server_name).casefold().strip() == str(local_name).casefold().strip():
+                        continue
+
+                    # If server has the real name and local has "unknown", don't overwrite it
+                    if any(x in str(local_name).lower() for x in ("unknown", "discovered", "endpoint")):
+                        logging.info(f"Mismatch found in '{key}' but server is better ('{server_name}' vs '{local_name}')")
+                        continue
+
+                    logging.info(f"Mismatch found in '{key}': Local is '{local_name}', Server is '{server_name}'")
+
+                    # Collect the raw value to send to NetBox
+                    changes_to_apply[key] = local_value
+
+                if changes_to_apply:
+                    logging.debug(f"Before save name: {existing_device.name}")
+
+                    # FIX: Use .update() which guarantees pynetbox serializes and fires a PATCH request
+                    existing_device.update(changes_to_apply)
+
+                    logging.info("Updated successfully!")
+
+                    # Verify change
+                    fresh = nb.dcim.devices.get(existing_device.id)
+                    logging.debug(f"NetBox says name is now: {fresh.name}")
+                else:
+                    logging.info("Everything matches! No update needed")
+                return existing_device
+
+            # Create new device if none found
+            device = nb.dcim.devices.create(devicedict)
+            logging.info(f"'{devicedict['name']}' successfully uploaded to nb!")
+            return device
 
     except pynetbox.RequestError as e:
-        logging.error(f"Could not post device: {e}")
+        logging.error(f"NetBox API Request error: {e.error}")
     except Exception as e:
         logging.error(f"Could not post device: {e}")
     return None
+    # devicedict = resolve_relations(nb, devicedict)
+    # logging.debug(f"device dict: {devicedict}")
+
+
+    # if devicedict is None:
+    #     logging.error("Skipping device upload: could not resolve required relations")
+    #     return None
+
+    # devicedict = {k: v for k, v in devicedict.items() if not k.startswith("_")}
+
+    # logging.info(f"Uploading device '{devicedict.get('name')}' to nb")
+    # logging.debug(f"The dict we are uploading: {devicedict}")
+
+    # try:
+    #     search_results = nb.dcim.devices.filter(name=devicedict["name"])
+    #     results_list = list(search_results)
+
+    #     if results_list:
+    #         existing_device = results_list[0]
+    #     else:
+    #         search_results = nb.dcim.devices.filter(devicedict["cf_mac_address"])
+    #         results_list = list(search_results)
+    #         if results_list:
+    #             existing_device = results_list[0]
+    #         else:
+    #             existing_device = None
+
+    #     if existing_device:
+    #         logging.info(f"'{devicedict['name']}' already exists as {getattr(existing_device, "name", None)}. Checking differences...")
+    #         needs_update = False
+    #         for key, local_value in devicedict.items():
+    #             server_attr = getattr(existing_device, key, None)
+
+    #             local_name = get_relation_name(local_value)
+    #             server_name = get_relation_name(server_attr)
+    #             if str(server_name).casefold().strip() == str(local_name).casefold().strip():
+    #                 continue
+    #             if any(x in str(local_name).lower() for x in ("unknown", "discovered", "endpoint")):
+    #                 logging.info("Mismatch found but server is better")
+    #                 continue
+    #             logging.info(
+    #                 f"Mismatch found in {key}: "
+    #                 f"Local is '{local_name}', Server is '{server_name}'"
+    #             )
+    #             print(type(existing_device))
+    #             print(repr(existing_device.name))
+    #             print(f"Local NAME: {local_name}")
+    #             setattr(existing_device, key, local_name)
+    #             needs_update = True
+
+    #         if needs_update:
+    #             logging.debug(f"Before save: {existing_device.name}")
+    #             existing_device.save()
+    #             logging.info("Updated succesfully!")
+    #             logging.debug(f"After save: {existing_device.name}")
+    #             fresh = nb.dcim.devices.get(existing_device.id)
+    #             logging.debug(f"NetBox says name is now: {fresh.name}")
+    #         else:
+    #             logging.info("Everything matches! No update needed")
+    #         return existing_device
+
+    #     device = nb.dcim.devices.create(devicedict)
+    #     logging.info(f"'{devicedict['name']}' succesfully uploaded to nb!")
+    #     logging.debug(f"Uploaded device -> id: {device.id}, url: {device.url}")
+    #     return device
+
+    # except pynetbox.RequestError as e:
+    #     logging.error(f"Could not post device: {e}")
+    # except Exception as e:
+    #     logging.error(f"Could not post device: {e}")
+    # return None
 
 
 def post_switch(nb, switchdict):

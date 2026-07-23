@@ -144,7 +144,7 @@ def local_switch(net_connect, switch_info, ip_address):
             "role": {"name": role},
             "status": status,
             # "cf_ip_address": ip_address,############################################# UNCOMMENT when on real netbox
-            # "cf_mac": mac,
+            "cf_mac_address": switch_info["mac"],
             "description": f"Info from script -> | mac:{switch_info["mac"]} | OS:{switch_info["OS"]}",
             "_ports": ports,
         }
@@ -158,7 +158,7 @@ def local_switch(net_connect, switch_info, ip_address):
                 f"Local switch parsed for netbox upload! Data saved to output/{ip_address}_local_switch.json"
             )
         except Exception as e:
-            logging.error(f"Could not create parsed for nb upload json make sure output folder is in project Reason: {e}")
+            logging.warning(f"Could not create parsed for nb upload json make sure output folder is in project Reason: {e}")
     except Exception as e:
         logging.error(f"Unable to parse local switch for netbox Reason: {e}")
         raise Exception(e)
@@ -230,7 +230,7 @@ def connected_devices(raw_data, switch_ip):
                         "role": {"name": role},
                         "status": status,
                         # "switch_port": port,
-                        # "cf_mac": ":".join([mac[i : i + 2] for i in range(0, 12, 2)]),
+                        "cf_mac_address": ":".join([mac[i : i + 2] for i in range(0, 12, 2)]),
                         # "cf_ip_address": ip_address,
                         # "cf_installation_date": "1900-1-1",
                         "description": f"Discovered via {source} correlation",

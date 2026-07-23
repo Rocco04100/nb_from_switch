@@ -13,8 +13,6 @@ logging.debug("configs")
 args = configs.get("args", "")
 os_templates = configs.get("os_templates", "")
 switch_list = configs.get("switch_list", "")
-switch_user = configs.get("creds", "").get("switch_user", "")
-switch_password = configs.get("creds", "").get("switch_password", "")
 netbox_url = configs.get("creds", "").get("netbox_url", "")
 netbox_token = configs.get("creds", "").get("netbox_token", "")
 
@@ -23,7 +21,11 @@ logging.debug(f"ARGS DETECTED: {args}")
 logging.info("Loop start")
 
 for switch in switch_list:
+    logging.debug(f"should be the switch we on: {switch}")
     ip_address = switch["ip_address"]
+    switch_user = switch.get("user")
+    switch_password =switch.get("pass")
+    logging.debug(f"the creds {switch_user} {switch_password}")
     connection_params = {
         "device_type": "generic",
         "host": ip_address,
