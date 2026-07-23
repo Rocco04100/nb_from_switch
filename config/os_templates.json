@@ -20,7 +20,7 @@
     "ports_command": "show ports no-refresh",
     "arp_command": "show iparp",
     "mac_command": "show fdb",
-    "lldp_command": "show lldp neighbors details",
+    "lldp_command": "show lldp neighbors detailed",
     "textfsm_templates": {
       "version": "exos_switch.textfsm",
       "ports": "exos_ports.textfsm",

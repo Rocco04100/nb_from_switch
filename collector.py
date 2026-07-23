@@ -105,8 +105,8 @@ def get_device_data(ssh_session, os_templates, os_name, switch_ip):
         try:
             arp_output = ssh_session.send_command(arp_cmd)
             with open(arp_template, mode='r', newline='') as f:
-                arp_template = f.read()
-            temp_file = io.StringIO(arp_template)
+                arp_file = f.read()
+            temp_file = io.StringIO(arp_file)
             arp_parse = textfsm.TextFSM(temp_file)
             parsed_arp = arp_parse.ParseTextToDicts(arp_output)
             logging.info("Arp extraction successful!")
@@ -118,9 +118,9 @@ def get_device_data(ssh_session, os_templates, os_name, switch_ip):
         try:
             mac_output = ssh_session.send_command(mac_cmd)
             with open(mac_template, mode='r', newline='') as f:
-                mac_template = f.read()
-            temp_file = io.StringIO(mac_template)
-            mac_parse = textfsm.TextFSM(temp_file)
+                mac_template_file = f.read()
+            mac_file = io.StringIO(mac_template_file)
+            mac_parse = textfsm.TextFSM(mac_file)
             parsed_mac = mac_parse.ParseTextToDicts(mac_output)
             logging.info("Mac Table extraction successful!")
             logging.debug(f"Mac Table: {parsed_mac}")

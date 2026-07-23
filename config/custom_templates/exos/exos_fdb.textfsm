@@ -1,5 +1,6 @@
 Value mac ([0-9a-fA-F:]{17})
-Value port (\S+)
+Value port (\d+)
 
 Start
-  ^${mac}\s+\S+\s+\d+\s+\S+\s+${port}
+  ^${mac}\s+\S+\(\d+\)\s+\d+\s+.*?\s+${port}\s* -> Record
+  ^Flags\s*: -> End

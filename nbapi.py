@@ -107,6 +107,9 @@ def post_device(nb, devicedict):
                 server_name = get_relation_name(server_attr)
                 if str(server_name).casefold().strip() == str(local_name).casefold().strip():
                     continue
+                if any(x in str(local_name).lower() for x in ("unknown", "discovered")):
+                    logging.debug("Mismatch found but server is better")
+                    continue
                 logging.info(
                     f"Mismatch found in {key}: "
                     f"Local is '{local_name}', Server is '{server_name}'"

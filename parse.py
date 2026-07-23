@@ -49,26 +49,33 @@ def create_lldp_table(lldp_data):
     lldp_table = {}
     if isinstance(lldp_data, list):
         for neighbor in lldp_data:
-            remote_host = neighbor.get("hostname", "")
-
-            local_port = str(neighbor.get("local_port", ""))
+            remote_host = neighbor.get("HOSTNAME", "").split(".")[0].strip().lower()
+            local_port = str(neighbor.get("LOCAL_PORT", ""))
 
             remote_port = (
-                neighbor.get("neighbor_port", "NIC"))
+                neighbor.get("REMOTE_PORT", "NIC"))
 
 
-            capabilities = neighbor.get("capabilities", "")
-            is_network_device = any(cap in capabilities for cap in ["B", "R"])
-            is_end_host = "S" in capabilities
+            capabilities = neighbor.get("ENABLED_CAPABILITIES", "")
+            is_switch = any(cap in capabilities for cap in ["B", "Bridge"])
+            is_router = any(cap in capabilities for cap in ["R", "Router"])
 
             if remote_host and local_port:
                 lldp_table[local_port] = {
                     "hostname": remote_host,
-                    "is_network_device": is_network_device,
-                    "is_end_host": is_end_host,
                     "capabilities": capabilities,
                     "remote_port": remote_port
                 }
+            if is_switch:
+                lldp_table[local_port]["role"] = "Switch"
+                lldp_table[local_port]["device_type"] = "Unknown Switch"
+            elif is_router:
+                lldp_table[local_port]["role"] = "Router"
+                lldp_table[local_port]["device_type"] = "Unknown Router"
+            else:
+                lldp_table[local_port]["role"] = "Endhost"
+                lldp_table[local_port]["device_type"] = "Unknown Likely Endhost"
+
     if not lldp_table:
         logging.warning("LLDP table empty connected devices may be vague")
     logging.debug(f"LLDP table created: {lldp_table}")
@@ -189,18 +196,8 @@ def connected_devices(raw_data, switch_ip):
                     lldp_info = lldp_table[port]
                     name = lldp_info["hostname"]
                     remote_interface = lldp_info["remote_port"] or "NIC"
-                    source = "LLDP"
-
-                    # Determine Netbox Role via LLDP Capabilities flags
-                    if "R" in lldp_info["capabilities"]:
-                        role = "Router"
-                        device_type = "Generic Router"
-                    elif "B" in lldp_info["capabilities"]:
-                        role = "Switch"
-                        device_type = "Generic Switch"
-                    else:
-                        role = "Endpoint"
-                        device_type = "Unknown Enpoint"
+                    role = lldp_info.get("role", "")
+                    device_type = lldp_info.get("device_type", "UNKNOWN")
                 else:
                     # Port has no LLDP neighbor. If it only has 1 dynamic MAC, it's likely a host workstation.
                     role = "Endpoint"
