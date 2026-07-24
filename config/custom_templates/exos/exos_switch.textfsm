@@ -3,6 +3,6 @@ Value MAC ([0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5})
 Value MODEL (\S+)
 
 Start
-  ^SysName:\s+${sysname}
-  ^System MAC:\s+${mac}
+  ^SysName:\s+${SYSNAME}
+  ^System MAC:\s+${MAC}
   ^System Type:\s+${MODEL} -> Record

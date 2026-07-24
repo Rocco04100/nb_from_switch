@@ -1,9 +1,11 @@
-import logging
 import argparse
-import json
-from dotenv import load_dotenv
-import os
 import csv
+import json
+import logging
+import os
+
+from dotenv import load_dotenv
+
 
 def initialize():
     args = setup_args()
@@ -11,11 +13,11 @@ def initialize():
 
     logging.info("Initiallizing...")
 
-    return{
-    "os_templates": validate_os_templates(),
-    "creds": validate_creds(),
-    "args": args,
-    "switch_list": validate_switch_list(),
+    return {
+        "os_templates": validate_os_templates(),
+        "creds": validate_creds(),
+        "args": args,
+        "switch_list": validate_switch_list(),
     }
 
 
@@ -56,13 +58,9 @@ def validate_os_templates():
                 )
 
             if not isinstance(config["textfsm_templates"], dict):
-                raise ValueError(
-                    f"{os_name}.textfsm_templates must be a JSON object."
-                )
+                raise ValueError(f"{os_name}.textfsm_templates must be a JSON object.")
 
-            missing_templates = (
-                REQUIRED_TEMPLATES - config["textfsm_templates"].keys()
-            )
+            missing_templates = REQUIRED_TEMPLATES - config["textfsm_templates"].keys()
             if missing_templates:
                 raise ValueError(
                     f"{os_name}.textfsm_templates is missing: "
@@ -132,7 +130,7 @@ def setup_log(level):
     logging.basicConfig(
         level=getattr(logging, level),
         format="%(asctime)s %(module)s %(levelname)s - %(message)s",
-        force=True
+        force=True,
     )
     logging.getLogger("netmiko").setLevel(logging.WARN)
     logging.getLogger("paramiko").setLevel(logging.WARN)

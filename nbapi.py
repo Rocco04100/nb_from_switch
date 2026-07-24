@@ -1,6 +1,7 @@
-import logging
-import pynetbox
 import ipaddress
+import logging
+
+import pynetbox
 
 
 def get_or_create_manufacturer(nb, name):
@@ -29,7 +30,9 @@ def get_or_create_device_type(nb, model, manufacturer_name="Generic"):
 
     slug = model.lower().replace(" ", "-")
     try:
-        return nb.dcim.device_types.create(model=model, slug=slug, manufacturer=manufacturer.id)
+        return nb.dcim.device_types.create(
+            model=model, slug=slug, manufacturer=manufacturer.id
+        )
     except pynetbox.RequestError as e:
         logging.error(f"Could not create device type '{model}': {e}")
         return None
@@ -80,64 +83,77 @@ def post_device(nb, devicedict):
     Used for both the local switch and each discovered connected device.
     """
     try:
-            # 1. Look up by name
-            search_results = nb.dcim.devices.filter(name=devicedict["name"])
+        # 1. Look up by name
+        search_results = nb.dcim.devices.filter(name=devicedict["name"])
+        results_list = list(search_results)
+
+        # 2. FIX: Look up by MAC address with a keyword argument
+        if not results_list and devicedict.get("cf_mac_address"):
+            search_results = nb.dcim.devices.filter(devicedict["cf_mac_address"])
             results_list = list(search_results)
 
-            # 2. FIX: Look up by MAC address with a keyword argument
-            if not results_list and devicedict.get("cf_mac_address"):
-                search_results = nb.dcim.devices.filter(devicedict["cf_mac_address"])
-                results_list = list(search_results)
+        existing_device = results_list[0] if results_list else None
 
-            existing_device = results_list[0] if results_list else None
+        if existing_device:
+            logging.info(
+                f"'{devicedict['name']}' already exists as {getattr(existing_device, 'name', None)}. Checking differences..."
+            )
 
-            if existing_device:
-                logging.info(f"'{devicedict['name']}' already exists as {getattr(existing_device, 'name', None)}. Checking differences...")
+            # Track pending updates in a dictionary instead of using setattr directly
+            changes_to_apply = {}
 
-                # Track pending updates in a dictionary instead of using setattr directly
-                changes_to_apply = {}
+            for key, local_value in devicedict.items():
+                server_attr = getattr(existing_device, key, None)
 
-                for key, local_value in devicedict.items():
-                    server_attr = getattr(existing_device, key, None)
+                # Standardize values using your helper function
+                local_name = get_relation_name(local_value)
+                server_name = get_relation_name(server_attr)
 
-                    # Standardize values using your helper function
-                    local_name = get_relation_name(local_value)
-                    server_name = get_relation_name(server_attr)
+                # Check for matches
+                if (
+                    str(server_name).casefold().strip()
+                    == str(local_name).casefold().strip()
+                ):
+                    continue
 
-                    # Check for matches
-                    if str(server_name).casefold().strip() == str(local_name).casefold().strip():
-                        continue
+                # If server has the real name and local has "unknown", don't overwrite it
+                if any(
+                    x in str(local_name).lower()
+                    for x in ("unknown", "discovered", "endpoint")
+                ):
+                    logging.info(
+                        f"Mismatch found in '{key}' but server is better ('{server_name}' vs '{local_name}')"
+                    )
+                    continue
 
-                    # If server has the real name and local has "unknown", don't overwrite it
-                    if any(x in str(local_name).lower() for x in ("unknown", "discovered", "endpoint")):
-                        logging.info(f"Mismatch found in '{key}' but server is better ('{server_name}' vs '{local_name}')")
-                        continue
+                logging.info(
+                    f"Mismatch found in '{key}': Local is '{local_name}', Server is '{server_name}'"
+                )
 
-                    logging.info(f"Mismatch found in '{key}': Local is '{local_name}', Server is '{server_name}'")
+                # Collect the raw value to send to NetBox
+                changes_to_apply[key] = local_value
 
-                    # Collect the raw value to send to NetBox
-                    changes_to_apply[key] = local_value
+            if changes_to_apply:
+                logging.debug(f"Before save name: {existing_device.name}")
 
-                if changes_to_apply:
-                    logging.debug(f"Before save name: {existing_device.name}")
+                # FIX: Use .update() which guarantees pynetbox serializes and fires a PATCH request
+                resolved_changes = resolve_relations(nb, changes_to_apply)
+                existing_device.update(resolved_changes)
 
-                    # FIX: Use .update() which guarantees pynetbox serializes and fires a PATCH request
-                    existing_device.update(changes_to_apply)
+                logging.info("Updated successfully!")
 
-                    logging.info("Updated successfully!")
+                # Verify change
+                fresh = nb.dcim.devices.get(existing_device.id)
+                logging.debug(f"NetBox says name is now: {fresh.name}")
+            else:
+                logging.info("Everything matches! No update needed")
+            return existing_device
 
-                    # Verify change
-                    fresh = nb.dcim.devices.get(existing_device.id)
-                    logging.debug(f"NetBox says name is now: {fresh.name}")
-                else:
-                    logging.info("Everything matches! No update needed")
-                return existing_device
-
-            # Create new device if none found
-            resolved_devices = resolve_relations(nb, devicedict)
-            device = nb.dcim.devices.create(resolved_devices)
-            logging.info(f"'{devicedict['name']}' successfully uploaded to nb!")
-            return device
+        # Create new device if none found
+        resolved_devices = resolve_relations(nb, devicedict)
+        device = nb.dcim.devices.create(resolved_devices)
+        logging.info(f"'{devicedict['name']}' successfully uploaded to nb!")
+        return device
 
     except pynetbox.RequestError as e:
         logging.error(f"NetBox API Request error: {e.error}")
@@ -149,7 +165,7 @@ def post_device(nb, devicedict):
 def post_switch(nb, switchdict):
     ports_list = switchdict.pop("_ports")
     switch_posted = post_device(nb, switchdict)
-    if (switch_posted):
+    if switch_posted:
         logging.info("Getting or creating switch interfaces...")
         for port in ports_list:
             get_or_create_interface(nb, switch_posted, port["PORT"], port["TYPE"])
@@ -170,8 +186,9 @@ def post_connected_devices(nb, devices, switch_device):
         local_iface_name = devicedict.pop("_local_interface", None)
         remote_iface_name = devicedict.pop("_remote_interface", "NIC")
         discovered_ip = devicedict.pop("_ip_address", None)
-
-        nb_device = post_device(nb, devicedict)
+        nb_device = "device not uploaded it didnt have ip"
+        if discovered_ip:
+            nb_device = post_device(nb, devicedict)
         results.append(nb_device)
         if not nb_device:
             continue
@@ -185,7 +202,9 @@ def post_connected_devices(nb, devices, switch_device):
             set_primary_ip(nb_device, ip_record)
 
     succeeded = sum(1 for r in results if r)
-    logging.info(f"Connected devices upload complete: {succeeded}/{len(devices)} succeeded")
+    logging.info(
+        f"Connected devices upload complete: {succeeded}/{len(devices)} succeeded"
+    )
     return results
 
 
@@ -224,8 +243,12 @@ def get_or_create_cable(nb, interface_a, interface_b):
     )
     try:
         return nb.dcim.cables.create(
-            a_terminations=[{"object_type": "dcim.interface", "object_id": interface_a.id}],
-            b_terminations=[{"object_type": "dcim.interface", "object_id": interface_b.id}],
+            a_terminations=[
+                {"object_type": "dcim.interface", "object_id": interface_a.id}
+            ],
+            b_terminations=[
+                {"object_type": "dcim.interface", "object_id": interface_b.id}
+            ],
         )
     except pynetbox.RequestError as e:
         logging.error(f"Could not create cable: {e}")
@@ -235,7 +258,9 @@ def get_or_create_cable(nb, interface_a, interface_b):
 def get_or_create_ip_address(nb, address, interface):
 
     if not address:
-        logging.warning("Connected device has no discovered IP address; skipping IP upload")
+        logging.warning(
+            "Connected device has no discovered IP address; skipping IP upload"
+        )
         return None
 
     if not interface:
@@ -328,7 +353,7 @@ def set_primary_ip(device, ip_record):
 
 def get_relation_name(value):
     if value is None:
-           return None
+        return None
 
     fields = ("name", "model", "value", "label", "id")
 

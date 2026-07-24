@@ -1,12 +1,13 @@
 #!/home/noc/Desktop/nb_from_switch/.venv/bin/python3
 import logging
+
 import pynetbox
 from netmiko import ConnectHandler
 
-from collector import get_device_data, get_switch_data
 import nbapi
 import parse
 import startup
+from collector import get_device_data, get_switch_data
 
 configs = startup.initialize()
 logging.debug("configs")
@@ -42,11 +43,15 @@ for switch in switch_list:
         logging.info(f"Connecting to {connection_params['host']}...")
         net_connect = ConnectHandler(**connection_params)
 
-        switch_data ={}
+        switch_data = {}
         switch_data = get_switch_data(net_connect, os_templates)
-        device_data = get_device_data(net_connect, os_templates, switch_data.get("OS"), ip_address)
+        device_data = get_device_data(
+            net_connect, os_templates, switch_data.get("OS"), ip_address
+        )
 
-        local_switch = parse.local_switch(net_connect, switch_data, connection_params["host"], args.test)
+        local_switch = parse.local_switch(
+            net_connect, switch_data, connection_params["host"], args.test
+        )
         connected_devices = parse.connected_devices(device_data, ip_address, args.test)
 
         if net_connect:
@@ -56,8 +61,10 @@ for switch in switch_list:
         """
         NETBOX CONNECTION -> CALL nbapi FUNCTIONS
         """
-        if(args.dry):
-            logging.info("Dry run detected - data not uploaded to netbox check outputs for results")
+        if args.dry:
+            logging.info(
+                "Dry run detected - data not uploaded to netbox check outputs for results"
+            )
         else:
             logging.info("Connecting to nb api via pynetbox...")
             nb = pynetbox.api(

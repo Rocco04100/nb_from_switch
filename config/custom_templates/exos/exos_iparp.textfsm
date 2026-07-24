@@ -3,4 +3,4 @@ Value MAC ([0-9a-fA-F:]{17})
 
 Start
   ^VR-.* -> Continue.Record
-  ^\S+\s+${IP}\s+${mac}\s+
+  ^\S+\s+${IP}\s+${MAC}\s+

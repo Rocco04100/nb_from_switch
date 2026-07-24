@@ -60,11 +60,13 @@ site_table = {
     "10.132": "BFCT",
     "10.135": "Braintree_Lex",
     "10.65": "Logan Office Center",
-    "10.131":"Worcester Terminal",
+    "10.131": "Worcester Terminal",
 }
+
+
 def get_site(ip_address):
     if ip_address:
-        return site_table[f"{".".join(ip_address.split(".")[:2])}"]
+        return site_table[f"{'.'.join(ip_address.split('.')[:2])}"]
     else:
         logging.error("Site not found in site table unable to add device")
     return None
