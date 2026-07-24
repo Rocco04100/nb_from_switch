@@ -1,5 +1,5 @@
-Value mac ([0-9a-fA-F]{4}\.[0-9a-fA-F]{4}\.[0-9a-fA-F]{4})
-Value port (\S+)
+Value MAC ([0-9a-fA-F]{4}\.[0-9a-fA-F]{4}\.[0-9a-fA-F]{4})
+Value PORT (\S+)
 
 Start
-  ^\s*\d+\s+${mac}\s+\S+\s+${port} -> Record
+  ^\s*\d+\s+${MAC}\s+\S+\s+${PORT} -> Record

@@ -21,11 +21,10 @@ logging.debug(f"ARGS DETECTED: {args}")
 logging.info("Loop start")
 
 for switch in switch_list:
-    logging.debug(f"should be the switch we on: {switch}")
+    logging.debug(f"The switch: {switch}")
     ip_address = switch["ip_address"]
     switch_user = switch.get("user")
-    switch_password =switch.get("pass")
-    logging.debug(f"the creds {switch_user} {switch_password}")
+    switch_password = switch.get("pass")
     connection_params = {
         "device_type": "generic",
         "host": ip_address,
@@ -47,8 +46,8 @@ for switch in switch_list:
         switch_data = get_switch_data(net_connect, os_templates)
         device_data = get_device_data(net_connect, os_templates, switch_data.get("OS"), ip_address)
 
-        local_switch = parse.local_switch(net_connect, switch_data, connection_params["host"])
-        connected_devices = parse.connected_devices(device_data, ip_address)
+        local_switch = parse.local_switch(net_connect, switch_data, connection_params["host"], args.test)
+        connected_devices = parse.connected_devices(device_data, ip_address, args.test)
 
         if net_connect:
             net_connect.disconnect()

@@ -1,8 +1,8 @@
-Value port (\d+)
-Value type (\S+)
+Value PORT (\d+)
+Value TYPE (\S+)
 
 Start
   # Skip headers and start recording when a line begins with a number
-  ^${port}\s+(?:\S+\s+)?${type}\s+[A-Z]\s+[A-Z\d] -> Record
+  ^${port}\s+(?:\S+\s+)?${TYPE}\s+[A-Z]\s+[A-Z\d] -> Record
   # Ignore all other lines safely without crashing or ending early
   ^.*

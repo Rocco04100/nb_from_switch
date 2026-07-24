@@ -1,8 +1,8 @@
-Value mac (([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))
-Value model (\S+)
-Value serial (\S+)
+Value MAC (([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))
+Value MODEL (\S+)
+Value SERIAL (\S+)
 
 Start
-  ^Base ethernet MAC Address\s+:\s+${mac}
-  ^Model number\s+:\s+${model}
-  ^System serial number\s+:\s+${serial} -> Record
+  ^Base ethernet MAC Address\s+:\s+${MAC}
+  ^Model number\s+:\s+${MODEL}
+  ^System serial number\s+:\s+${SERIAL} -> Record

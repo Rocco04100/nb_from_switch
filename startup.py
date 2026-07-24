@@ -118,6 +118,12 @@ def setup_args():
         action="store_true",
         help="Will not post to netbox check output file json's for what would be posted",
     )
+    parser.add_argument(
+        "-t",
+        "--test",
+        action="store_true",
+        help="Will upload to netbox site 'Test Site Beta' good for checking what will be uploaded to netbox",
+    )
     args = parser.parse_args()
     return args
 

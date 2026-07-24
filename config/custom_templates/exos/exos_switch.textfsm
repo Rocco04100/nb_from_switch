@@ -1,8 +1,8 @@
-Value sysname (\S+)
-Value mac ([0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5})
-Value model (\S+)
+Value SYSNAME (\S+)
+Value MAC ([0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5})
+Value MODEL (\S+)
 
 Start
   ^SysName:\s+${sysname}
   ^System MAC:\s+${mac}
-  ^System Type:\s+${model} -> Record
+  ^System Type:\s+${MODEL} -> Record

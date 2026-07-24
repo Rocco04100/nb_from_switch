@@ -7,10 +7,10 @@ def create_arp_table(arp_data):
     logging.debug(f"Arp data: {arp_data}")
     arp_table = {}
     for entry in arp_data:
-        mac = entry.get("mac", "")
+        mac = entry.get("MAC", "")
         mac = str(mac).replace(".", "").replace(":", "").upper()
 
-        ip = entry.get("ip", "")
+        ip = entry.get("IP", "")
         arp_table[mac] = ip
     if not arp_table:
         logging.error("Arp Table empty")
@@ -21,12 +21,12 @@ def create_arp_table(arp_data):
 def create_mac_table(mac_data):
     mac_table = {}
     for entry in mac_data:
-        mac = entry.get("mac", "")
+        mac = entry.get("MAC", "")
         if isinstance(mac, list):
             mac = mac[0] if mac else ""
         mac = str(mac).replace(".", "").replace(":", "").upper()
 
-        port = entry.get("port", "")
+        port = entry.get("PORT", "")
         if isinstance(port, list):
             ports_to_add = [str(p) for p in port if p]
         else:
@@ -97,7 +97,7 @@ def parse_ports(ports):
       return ports
 
 
-def local_switch(net_connect, switch_info, ip_address):
+def local_switch(net_connect, switch_info, ip_address, test=False):
     """
     #######################################################################################
     Parse the detected OS to determine the local switch role and device type
@@ -116,12 +116,16 @@ def local_switch(net_connect, switch_info, ip_address):
 
     try:
         role = "Switch"
-        device_type = switch_info["model"]
+        device_type = switch_info["MODEL"]
         status = "active"
-        site = nb_utils.get_site(ip_address)
+        site = ""
         ports = parse_ports(switch_info["ports"])
-        serial = switch_info.get("serial", "")
-
+        serial = switch_info.get("SERIAL", "")
+        if test:
+            site = "Test Site Beta"
+            logging.info(f"TEST UPLOAD DETECTED SETTING SITE TO: '{site}'")
+        else:
+            site = nb_utils.get_site(ip_address)
 
         checks = {
             "name": switch_name,
@@ -144,8 +148,8 @@ def local_switch(net_connect, switch_info, ip_address):
             "role": {"name": role},
             "status": status,
             # "cf_ip_address": ip_address,############################################# UNCOMMENT when on real netbox
-            "cf_mac_address": switch_info["mac"],
-            "description": f"Info from script -> | mac:{switch_info["mac"]} | OS:{switch_info["OS"]}",
+            "cf_mac_address": switch_info["MAC"],
+            "description": f"Info from script -> | mac:{switch_info["MAC"]} | OS:{switch_info["OS"]}",
             "_ports": ports,
         }
         if serial:
@@ -165,7 +169,7 @@ def local_switch(net_connect, switch_info, ip_address):
     return switch_parsed
 
 
-def connected_devices(raw_data, switch_ip):
+def connected_devices(raw_data, switch_ip, test=False):
     """
     #######################################################################################
     Correlates ARP, MAC Table, and LLDP data to form json for nb import
@@ -191,7 +195,11 @@ def connected_devices(raw_data, switch_ip):
 
         for mac, ports in mac_table.items():
             ip_address = arp_table.get(mac, "")
-            site = nb_utils.get_site(ip_address)
+            if test:
+                site = "Test Site Beta"
+                logging.info(f"TEST UPLOAD DETECTED SETTING SITE TO: '{site}'")
+            else:
+                site = nb_utils.get_site(ip_address)
 
 
             for port in ports:
@@ -200,18 +208,18 @@ def connected_devices(raw_data, switch_ip):
                 status = "active"
                 name ="UNKNOWN DISCOVERED DEVICE"
                 source="MAC_ARP"
-                remote_interface = "NIC"
+                remote_interface = "eth0"
 
                 if port in lldp_table:
                     lldp_info = lldp_table[port]
                     name = lldp_info["hostname"]
-                    remote_interface = lldp_info["remote_port"] or "NIC"
+                    remote_interface = lldp_info["remote_port"] or "eth0"
                     role = lldp_info.get("role", "")
                     device_type = lldp_info.get("device_type", "UNKNOWN")
                 else:
                     # Port has no LLDP neighbor. If it only has 1 dynamic MAC, it's likely a host workstation.
-                    role = "Endpoint"
-                    device_type = "Unknown Endpoint"
+                    role = "Unknown"
+                    device_type = "Unknown"
                     name = f"Unknown Host({':'.join([mac[i : i + 2] for i in range(0, 12, 2)])})"
 
                 checks = {

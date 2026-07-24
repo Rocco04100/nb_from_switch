@@ -1,5 +1,5 @@
-Value port (\S+)
-Value type (\S+)
+Value PORT (\S+)
+Value TYPE (\S+)
 
 Start
-  ^${port}\s+.*?\s+${type}$$ -> Record
+  ^${PORT}\s+.*?\s+${TYPE}$$ -> Record

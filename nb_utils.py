@@ -5,7 +5,7 @@ FOR GLOBAL LOOKUP UTILS
 """
 
 site_table = {
-    "192.168": "Bob Test site",
+    "192.168": "Test Site Beta",
     "10.2": "Building 2",
     "10.3": "Building 3",
     "10.4": "Building 4",

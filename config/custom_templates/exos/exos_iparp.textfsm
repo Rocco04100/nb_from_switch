@@ -1,6 +1,6 @@
-Value Required ip (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})
-Value mac ([0-9a-fA-F:]{17})
+Value Required IP (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})
+Value MAC ([0-9a-fA-F:]{17})
 
 Start
   ^VR-.* -> Continue.Record
-  ^\S+\s+${ip}\s+${mac}\s+
+  ^\S+\s+${IP}\s+${mac}\s+
