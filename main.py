@@ -45,12 +45,14 @@ for switch in switch_list:
 
         switch_data = {}
         switch_data = get_switch_data(net_connect, os_templates)
+        os_template = os_templates.get(switch_data.get("OS"))
+
         device_data = get_device_data(
             net_connect, os_templates, switch_data.get("OS"), ip_address
         )
 
         local_switch = parse.local_switch(
-            net_connect, switch_data, connection_params["host"], args.test
+            net_connect, switch_data, connection_params["host"], os_template, args.test
         )
         connected_devices = parse.connected_devices(device_data, ip_address, args.test)
 

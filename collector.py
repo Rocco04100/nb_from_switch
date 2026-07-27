@@ -160,7 +160,7 @@ def get_device_data(ssh_session, os_templates, os_name, switch_ip):
         with open(f"output/{switch_ip}_raw_output.json", mode="w") as f:
             json.dump(output, f)
             logging.info(
-                f"Conneceted devices collected succesfully! data saved to output/{switch_ip}_raw_output.json"
+                f"Connected devices collected succesfully! data saved to output/{switch_ip}_raw_output.json"
             )
     except Exception as e:
         logging.warning(

@@ -1,10 +1,12 @@
 import ipaddress
 import logging
+import traceback
 
 import pynetbox
 
 
 def get_or_create_manufacturer(nb, name):
+    name = (name or "Generic").strip()
     manufacturer = nb.dcim.manufacturers.get(name=name)
     if manufacturer:
         return manufacturer
@@ -13,7 +15,7 @@ def get_or_create_manufacturer(nb, name):
     slug = name.lower().replace(" ", "-")
     try:
         return nb.dcim.manufacturers.create(name=name, slug=slug)
-    except pynetbox.RequestError as e:
+    except Exception as e:
         logging.error(f"Could not create manufacturer '{name}': {e}")
         return None
 
@@ -33,7 +35,7 @@ def get_or_create_device_type(nb, model, manufacturer_name="Generic"):
         return nb.dcim.device_types.create(
             model=model, slug=slug, manufacturer=manufacturer.id
         )
-    except pynetbox.RequestError as e:
+    except Exception as e:
         logging.error(f"Could not create device type '{model}': {e}")
         return None
 
@@ -47,7 +49,7 @@ def get_or_create_role(nb, name):
     slug = name.lower().replace(" ", "-")
     try:
         return nb.dcim.device_roles.create(name=name, slug=slug, color="9e9e9e")
-    except pynetbox.RequestError as e:
+    except Exception as e:
         logging.error(f"Could not create device role '{name}': {e}")
         return None
 
@@ -61,7 +63,9 @@ def resolve_relations(nb, devicedict):
     device_type_info = devicedict.get("device_type")
     if isinstance(device_type_info, dict):
         model = device_type_info.get("model")
-        manufacturer_name = devicedict.pop("cf_manufacturer", "Generic")
+        manufacturer_name = devicedict.get("manufacturer", {"name": "Generic"}).get(
+            "name", "Generic"
+        )
         device_type = get_or_create_device_type(nb, model, manufacturer_name)
         if not device_type:
             return None
@@ -98,7 +102,6 @@ def post_device(nb, devicedict):
             logging.info(
                 f"'{devicedict['name']}' already exists as {getattr(existing_device, 'name', None)}. Checking differences..."
             )
-
             # Track pending updates in a dictionary instead of using setattr directly
             changes_to_apply = {}
 
@@ -155,10 +158,8 @@ def post_device(nb, devicedict):
         logging.info(f"'{devicedict['name']}' successfully uploaded to nb!")
         return device
 
-    except pynetbox.RequestError as e:
-        logging.error(f"NetBox API Request error: {e.error}")
     except Exception as e:
-        logging.error(f"Could not post device: {e}")
+        logging.exception(f"Could not post device: {e}")
     return None
 
 
@@ -184,7 +185,7 @@ def post_connected_devices(nb, devices, switch_device):
     for device in devices:
         devicedict = dict(device)
         local_iface_name = devicedict.pop("_local_interface", None)
-        remote_iface_name = devicedict.pop("_remote_interface", "NIC")
+        remote_iface_name = devicedict.pop("_remote_interface", None)
         discovered_ip = devicedict.pop("_ip_address", None)
         nb_device = "device not uploaded it didnt have ip"
         if discovered_ip:
@@ -221,7 +222,7 @@ def get_or_create_interface(nb, device, name, iface_type="other"):
     logging.debug(f"Interface '{name}' not found on '{device.name}'. Creating it...")
     try:
         return nb.dcim.interfaces.create(device=device.id, name=name, type=iface_type)
-    except pynetbox.RequestError as e:
+    except Exception as e:
         logging.error(f"Could not create interface '{name}' on '{device.name}': {e}")
         return None
 
@@ -250,7 +251,7 @@ def get_or_create_cable(nb, interface_a, interface_b):
                 {"object_type": "dcim.interface", "object_id": interface_b.id}
             ],
         )
-    except pynetbox.RequestError as e:
+    except Exception as e:
         logging.error(f"Could not create cable: {e}")
         return None
 
@@ -320,7 +321,7 @@ def get_or_create_ip_address(nb, address, interface):
         )
         return ip_record
 
-    except pynetbox.RequestError as e:
+    except Exception as e:
         logging.error(f"Could not create or assign IP '{normalized_address}': {e}")
         return None
 
@@ -346,7 +347,7 @@ def set_primary_ip(device, ip_record):
         )
         return True
 
-    except (ValueError, pynetbox.RequestError) as e:
+    except Exception as e:
         logging.error(f"Could not set primary IP for '{device.name}': {e}")
         return False
 

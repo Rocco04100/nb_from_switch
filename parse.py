@@ -1,5 +1,6 @@
 import json
 import logging
+from sre_parse import parse_template
 
 import nb_utils
 
@@ -96,7 +97,7 @@ def parse_ports(ports):
     return ports
 
 
-def local_switch(net_connect, switch_info, ip_address, test=False):
+def local_switch(net_connect, switch_info, ip_address, os_template, test=False):
     """
     #######################################################################################
     Parse the detected OS to determine the local switch role and device type
@@ -120,6 +121,8 @@ def local_switch(net_connect, switch_info, ip_address, test=False):
         site = ""
         ports = parse_ports(switch_info["ports"])
         serial = switch_info.get("SERIAL", "")
+        manufacturer = os_template.get("manufacturer")
+        print(f"MANUFACTURER from os template: {manufacturer}")
         if test:
             site = "Test Site Beta"
             logging.info(f"TEST UPLOAD DETECTED SETTING SITE TO: '{site}'")
@@ -153,7 +156,9 @@ def local_switch(net_connect, switch_info, ip_address, test=False):
         }
         if serial:
             switch_parsed["serial"] = serial
-
+        if manufacturer:
+            switch_parsed["manufacturer"] = {"name": manufacturer}
+            print(f"MANUFACTURER from switch parsed: {switch_parsed['manufacturer']}")
         try:
             with open(f"output/{ip_address}_local_switch.json", "w") as f:
                 json.dump(switch_parsed, f, indent=4)
@@ -231,6 +236,7 @@ def connected_devices(raw_data, switch_ip, test=False):
                         "name": name,
                         "site": {"name": site},
                         "device_type": {"model": device_type},
+                        "manufacturer": {"name": ""},
                         "role": {"name": role},
                         "status": status,
                         # "switch_port": port,

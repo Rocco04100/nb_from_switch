@@ -2,6 +2,7 @@
   "cisco": {
     "version_command": "show version",
     "device_type": "cisco_ios",
+    "manufacturer": "Cisco",
     "ports_command": "show interfaces status",
     "arp_command": "show ip arp",
     "mac_command": "show mac address-table",
@@ -17,6 +18,7 @@
   "exos": {
     "version_command": "show switch",
     "device_type": "extreme_exos",
+    "manufacturer": "Extreme",
     "ports_command": "show ports no-refresh",
     "arp_command": "show iparp",
     "mac_command": "show fdb",
