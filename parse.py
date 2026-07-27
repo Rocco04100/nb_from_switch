@@ -2,6 +2,8 @@ import json
 import logging
 from sre_parse import parse_template
 
+from mac_vendor_lookup import MacLookup
+
 import nb_utils
 
 
@@ -121,8 +123,7 @@ def local_switch(net_connect, switch_info, ip_address, os_template, test=False):
         site = ""
         ports = parse_ports(switch_info["ports"])
         serial = switch_info.get("SERIAL", "")
-        manufacturer = os_template.get("manufacturer")
-        print(f"MANUFACTURER from os template: {manufacturer}")
+        manufacturer = MacLookup().lookup(switch_info["MAC"])
         if test:
             site = "Test Site Beta"
             logging.info(f"TEST UPLOAD DETECTED SETTING SITE TO: '{site}'")
@@ -158,7 +159,6 @@ def local_switch(net_connect, switch_info, ip_address, os_template, test=False):
             switch_parsed["serial"] = serial
         if manufacturer:
             switch_parsed["manufacturer"] = {"name": manufacturer}
-            print(f"MANUFACTURER from switch parsed: {switch_parsed['manufacturer']}")
         try:
             with open(f"output/{ip_address}_local_switch.json", "w") as f:
                 json.dump(switch_parsed, f, indent=4)
@@ -236,7 +236,11 @@ def connected_devices(raw_data, switch_ip, test=False):
                         "name": name,
                         "site": {"name": site},
                         "device_type": {"model": device_type},
-                        "manufacturer": {"name": ""},
+                        "manufacturer": {
+                            "name": MacLookup().lookup(
+                                ":".join([mac[i : i + 2] for i in range(0, 12, 2)])
+                            )
+                        },
                         "role": {"name": role},
                         "status": status,
                         # "switch_port": port,

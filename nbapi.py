@@ -4,6 +4,8 @@ import traceback
 
 import pynetbox
 
+import nb_utils
+
 
 def get_or_create_manufacturer(nb, name):
     name = (name or "Generic").strip()
@@ -12,7 +14,7 @@ def get_or_create_manufacturer(nb, name):
         return manufacturer
 
     logging.info(f"Manufacturer '{name}' not found in NetBox. Creating it...")
-    slug = name.lower().replace(" ", "-")
+    slug = nb_utils.slugify(name)
     try:
         return nb.dcim.manufacturers.create(name=name, slug=slug)
     except Exception as e:
@@ -66,7 +68,9 @@ def resolve_relations(nb, devicedict):
         manufacturer_name = devicedict.get("manufacturer", {"name": "Generic"}).get(
             "name", "Generic"
         )
-        device_type = get_or_create_device_type(nb, model, manufacturer_name)
+        device_type = nb.dcim.device_types.get(
+            model=model, manufacturer__name=manufacturer_name
+        )
         if not device_type:
             return None
         devicedict["device_type"] = {"model": device_type.model}
@@ -102,10 +106,26 @@ def post_device(nb, devicedict):
             logging.info(
                 f"'{devicedict['name']}' already exists as {getattr(existing_device, 'name', None)}. Checking differences..."
             )
+
+            manufacturer_info = devicedict.get("manufacturer")
+
+            if isinstance(manufacturer_info, dict):
+                update_device_type_manufacturer(
+                    nb, existing_device, manufacturer_info.get("name", "Generic")
+                )
             # Track pending updates in a dictionary instead of using setattr directly
             changes_to_apply = {}
 
             for key, local_value in devicedict.items():
+                if key == "manufacturer":
+                    server_attr = (
+                        existing_device.device_type.manufacturer
+                        if existing_device.device_type
+                        else None
+                    )
+                else:
+                    server_attr = getattr(existing_device, key, None)
+
                 server_attr = getattr(existing_device, key, None)
 
                 # Standardize values using your helper function
@@ -371,3 +391,25 @@ def get_relation_name(value):
             return field_value
 
     return value
+
+
+def update_device_type_manufacturer(nb, device, manufacturer_name):
+    if not device.device_type:
+        return False
+
+    manufacturer = get_or_create_manufacturer(nb, manufacturer_name)
+    if not manufacturer:
+        return False
+
+    if device.device_type.manufacturer.id == manufacturer.id:
+        return False
+
+    logging.info(
+        f"Updating manufacturer for '{device.name}' "
+        f"from '{device.device_type.manufacturer.name}' "
+        f"to '{manufacturer.name}'"
+    )
+
+    device.device_type.update({"manufacturer": manufacturer.id})
+
+    return True

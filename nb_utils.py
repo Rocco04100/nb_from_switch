@@ -1,4 +1,5 @@
 import logging
+import re
 
 """
 FOR GLOBAL LOOKUP UTILS
@@ -70,3 +71,10 @@ def get_site(ip_address):
     else:
         logging.error("Site not found in site table unable to add device")
     return None
+
+
+def slugify(value):
+    value = value.lower().strip()
+    value = re.sub(r"[^a-z0-9_-]+", "-", value)
+    value = re.sub(r"-+", "-", value)
+    return value.strip("-")
