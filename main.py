@@ -16,6 +16,8 @@ os_templates = configs.get("os_templates", "")
 switch_list = configs.get("switch_list", "")
 netbox_url = configs.get("creds", "").get("netbox_url", "")
 netbox_token = configs.get("creds", "").get("netbox_token", "")
+switch_user = configs.get("creds", "").get("switch_user", "")
+switch_password = configs.get("creds", "").get("switch_password", "")
 
 
 logging.debug(f"ARGS DETECTED: {args}")
@@ -24,8 +26,6 @@ logging.info("Loop start")
 for switch in switch_list:
     logging.debug(f"The switch: {switch}")
     ip_address = switch["ip_address"]
-    switch_user = switch.get("user")
-    switch_password = switch.get("pass")
     connection_params = {
         "device_type": "generic",
         "host": ip_address,

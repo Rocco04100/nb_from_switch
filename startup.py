@@ -77,12 +77,16 @@ def validate_creds():
     load_dotenv()
     netbox_url = os.getenv("NETBOX_URL")
     netbox_token = os.getenv("NETBOX_TOKEN")
+    switch_user = os.getenv("SWITCH_USER")
+    switch_password = os.getenv("SWITCH_PASSWORD")
 
     if not netbox_url or not netbox_token:
         raise ValueError("Missing netbox credentials! check you .env file")
     return {
         "netbox_url": netbox_url,
         "netbox_token": netbox_token,
+        "switch_user": switch_user,
+        "switch_password": switch_password,
     }
 
 
