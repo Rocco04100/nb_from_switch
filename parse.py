@@ -1,14 +1,16 @@
 import json
 import logging
-from sre_parse import parse_template
 
-from mac_vendor_lookup import MacLookup
+from mac_vendor_lookup import MacLookup, VendorNotFoundError
 
 import nb_utils
 
+_mac_lookup = MacLookup()
+logger = logging.getLogger(__name__)
+
 
 def create_arp_table(arp_data):
-    logging.debug(f"Arp data: {arp_data}")
+    logger.debug(f"Arp data: {arp_data}")
     arp_table = {}
     for entry in arp_data:
         mac = entry.get("MAC", "")
@@ -17,8 +19,8 @@ def create_arp_table(arp_data):
         ip = entry.get("IP", "")
         arp_table[mac] = ip
     if not arp_table:
-        logging.error("Arp Table empty")
-    logging.debug(f"Arp Table created: {arp_table}")
+        logger.error("Arp Table empty")
+    logger.debug(f"Arp Table created: {arp_table}")
     return arp_table
 
 
@@ -44,8 +46,8 @@ def create_mac_table(mac_data):
                     mac_table[mac].append(p)
 
     if not mac_table:
-        logging.error("Mac Table empty")
-    logging.debug(f"Mac Table created: {mac_table}")
+        logger.error("Mac Table empty")
+    logger.debug(f"Mac Table created: {mac_table}")
     return mac_table
 
 
@@ -79,8 +81,8 @@ def create_lldp_table(lldp_data):
                 lldp_table[local_port]["device_type"] = "Unknown Likely Endhost"
 
     if not lldp_table:
-        logging.warning("LLDP table empty connected devices may be vague")
-    logging.debug(f"LLDP table created: {lldp_table}")
+        logger.warning("LLDP table empty connected devices may be vague")
+    logger.debug(f"LLDP table created: {lldp_table}")
     return lldp_table
 
 
@@ -99,6 +101,22 @@ def parse_ports(ports):
     return ports
 
 
+def get_manufacturer(mac_address):
+    """
+    Looks up the vendor for a MAC address using a single shared MacLookup
+    instance. Returns None if the vendor can't be determined instead of
+    raising, so one unknown MAC doesn't abort the whole device list.
+    """
+    try:
+        return _mac_lookup.lookup(mac_address)
+    except VendorNotFoundError:
+        logger.debug(f"No known vendor for MAC '{mac_address}'")
+        return None
+    except Exception as e:
+        logger.warning(f"MAC vendor lookup failed for '{mac_address}': {e}")
+        return None
+
+
 def local_switch(net_connect, switch_info, ip_address, os_template, test=False):
     """
     #######################################################################################
@@ -106,12 +124,12 @@ def local_switch(net_connect, switch_info, ip_address, os_template, test=False):
     #######################################################################################
     """
 
-    logging.info("Parsing local switch for netbox...")
+    logger.info("Parsing local switch for netbox...")
 
     try:
         switch_name = net_connect.find_prompt().strip("#> ")
     except Exception as e:
-        logging.error(f"Could not read switch prompt: {e}")
+        logger.error(f"Could not read switch prompt: {e}")
         switch_name = None
 
     switch_parsed = {}
@@ -123,10 +141,11 @@ def local_switch(net_connect, switch_info, ip_address, os_template, test=False):
         site = ""
         ports = parse_ports(switch_info["ports"])
         serial = switch_info.get("SERIAL", "")
-        manufacturer = MacLookup().lookup(switch_info["MAC"])
+        manufacturer = get_manufacturer(switch_info["MAC"])
+
         if test:
             site = "Test Site Beta"
-            logging.info(f"TEST UPLOAD DETECTED SETTING SITE TO: '{site}'")
+            logger.info(f"TEST UPLOAD DETECTED SETTING SITE TO: '{site}'")
         else:
             site = nb_utils.get_site(ip_address)
 
@@ -139,7 +158,7 @@ def local_switch(net_connect, switch_info, ip_address, os_template, test=False):
         }
         missing = [k for k, v in checks.items() if not v]
         if missing:
-            logging.error(
+            logger.error(
                 f"Missing fields [{', '.join(missing)}] cannot upload local switch"
             )
             return None
@@ -162,15 +181,15 @@ def local_switch(net_connect, switch_info, ip_address, os_template, test=False):
         try:
             with open(f"output/{ip_address}_local_switch.json", "w") as f:
                 json.dump(switch_parsed, f, indent=4)
-            logging.info(
+            logger.info(
                 f"Local switch parsed for netbox upload! Data saved to output/{ip_address}_local_switch.json"
             )
         except Exception as e:
-            logging.warning(
+            logger.warning(
                 f"Could not create parsed for nb upload json make sure output folder is in project Reason: {e}"
             )
     except Exception as e:
-        logging.error(f"Unable to parse local switch for netbox Reason: {e}")
+        logger.error(f"Unable to parse local switch for netbox Reason: {e}")
         raise Exception(e)
     return switch_parsed
 
@@ -183,7 +202,7 @@ def connected_devices(raw_data, switch_ip, test=False):
     #######################################################################################
     """
 
-    logging.info("Parsing connected devices for netbox...")
+    logger.info("Parsing connected devices for netbox...")
     connected_devices = []
 
     try:
@@ -198,9 +217,12 @@ def connected_devices(raw_data, switch_ip, test=False):
 
         for mac, ports in mac_table.items():
             ip_address = arp_table.get(mac, "")
+            manufacturer = get_manufacturer(
+                ":".join([mac[i : i + 2] for i in range(0, 12, 2)])
+            )
             if test:
                 site = "Test Site Beta"
-                logging.info(f"TEST UPLOAD DETECTED SETTING SITE TO: '{site}'")
+                logger.info(f"TEST UPLOAD DETECTED SETTING SITE TO: '{site}'")
             else:
                 site = nb_utils.get_site(ip_address)
             for port in ports:
@@ -236,11 +258,6 @@ def connected_devices(raw_data, switch_ip, test=False):
                         "name": name,
                         "site": {"name": site},
                         "device_type": {"model": device_type},
-                        "manufacturer": {
-                            "name": MacLookup().lookup(
-                                ":".join([mac[i : i + 2] for i in range(0, 12, 2)])
-                            )
-                        },
                         "role": {"name": role},
                         "status": status,
                         # "switch_port": port,
@@ -254,10 +271,12 @@ def connected_devices(raw_data, switch_ip, test=False):
                         "_remote_interface": remote_interface,  # the device's own port name (or "NIC")
                         "_ip_address": ip_address,
                     }
-                    logging.debug(f"Adding device: {device_info}")
+                    if manufacturer:
+                        device_info["manufacturer"] = {"name": manufacturer}
+                    logger.debug(f"Adding device: {device_info}")
                     connected_devices.append(device_info)
                 else:
-                    logging.error(
+                    logger.error(
                         f"Missing Fields [{', '.join(missing)}]"
                         f"cannot upload device with ip: {ip_address}, port: {port}"
                     )
@@ -265,7 +284,7 @@ def connected_devices(raw_data, switch_ip, test=False):
             if connected_devices:
                 with open(f"output/{switch_ip}_connected_devices.json", "w") as f:
                     json.dump(connected_devices, f, indent=4)
-                logging.info(
+                logger.info(
                     f"Connected Devices parsing successful! Data saved to output/{switch_ip}_connected_devices.json"
                 )
         except Exception as e:
@@ -274,5 +293,5 @@ def connected_devices(raw_data, switch_ip, test=False):
             )
 
     except Exception as e:
-        logging.error(e)
+        logger.error(e)
     return connected_devices

@@ -6,12 +6,14 @@ import os
 
 from dotenv import load_dotenv
 
+logger = logging.getLogger(__name__)
+
 
 def initialize():
     args = setup_args()
     setup_log(args.log)
 
-    logging.info("Initiallizing...")
+    logger.info("Initiallizing...")
 
     return {
         "os_templates": validate_os_templates(),
@@ -66,10 +68,10 @@ def validate_os_templates():
                     f"{os_name}.textfsm_templates is missing: "
                     f"{', '.join(sorted(missing_templates))}"
                 )
-        logging.info("OS templates validated successfully.")
+        logger.info("OS templates validated successfully.")
         return os_templates
     except Exception as e:
-        logging.critical(f"Invalid os_templates.json: {e}")
+        logger.critical(f"Invalid os_templates.json: {e}")
         raise
 
 
@@ -95,9 +97,9 @@ def validate_switch_list():
         with open("config/switches.csv", mode="r") as f:
             reader = csv.DictReader(f)
             switch_list = list(reader)
-        logging.debug(f"Switch ip's found: {switch_list}")
+        logger.debug(f"Switch ip's found: {switch_list}")
     except Exception as e:
-        logging.critical("Switch ip's not found in config folder aborting...")
+        logger.critical("Switch ip's not found in config folder aborting...")
         raise Exception(e)
     return switch_list
 

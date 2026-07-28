@@ -5,6 +5,8 @@ import logging
 import textfsm
 from netmiko import redispatch
 
+logger = logging.getLogger(__name__)
+
 
 def get_switch_data(ssh_session, os_templates):
     """
@@ -17,29 +19,30 @@ def get_switch_data(ssh_session, os_templates):
     """
     clean_dict = {}
     try:
-        logging.info("Detecting OS...")
+        logger.info("Detecting OS...")
         raw_output = ssh_session.send_command("show version", expect_string=r"#\s*$")
         os_name = ""
         for os in os_templates.keys():
             if os in raw_output:
-                logging.info(f"OS fingerprint match: {os}.  Redispatching...")
+                logger.info(f"OS fingerprint match: {os}.  Redispatching...")
                 os_name = os
         if os_name == "":
             raw_output = ssh_session.send_command("show switch", expect_string=r"#\s*$")
             for os in os_templates.keys():
                 if os in raw_output:
-                    logging.info(f"OS fingerprint match: {os}.  Redispatching...")
+                    logger.info(f"OS fingerprint match: {os}.  Redispatching...")
                     os_name = os
-        elif os_name == "":
-            logging.error(
-                "SWITCH OPERATING SYSTEM NOT DETECTED -> make sure the name is correct in os_templates.json as that is what is searched for"
-            )
-            return clean_dict
+
         try:
+            if os_name == "":
+                logger.error(
+                    "SWITCH OPERATING SYSTEM NOT DETECTED -> make sure the name is correct in os_templates.json as that is what is searched for"
+                )
+                return clean_dict
             os_template = os_templates.get(os_name)
             netmiko_type = os_template.get("device_type")
             redispatch(ssh_session, device_type=netmiko_type)
-            logging.info("Redispatch Successful! Extracting switch device info...")
+            logger.info("Redispatch Successful! Extracting switch device info...")
 
             version_cmd = os_template.get("version_command")
             version_textfsm = f"config/custom_templates/{os_name}/{os_template.get('textfsm_templates').get('version')}"
@@ -63,18 +66,18 @@ def get_switch_data(ssh_session, os_templates):
             temp_file = io.StringIO(ports_template)
             ports_parse = textfsm.TextFSM(temp_file)
             parsed_ports = ports_parse.ParseTextToDicts(port_output)
-            logging.debug(f"PORTS FOUND: {parsed_ports}")
+            logger.debug(f"PORTS FOUND: {parsed_ports}")
             if parsed_ports:
                 clean_dict["ports"] = parsed_ports
-            logging.info("Switch data collection successful!")
-            logging.debug(f"switch data collected: {clean_dict}")
+            logger.info("Switch data collection successful!")
+            logger.debug(f"switch data collected: {clean_dict}")
             return clean_dict
 
         except Exception as e:
-            logging.error(f"Redispatch failed reason: {e}")
+            logger.error(f"Redispatch failed reason: {e}")
 
     except Exception as e:
-        logging.error(f"{e}")
+        logger.error(f"{e}")
     return clean_dict
 
 
@@ -91,7 +94,7 @@ def get_device_data(ssh_session, os_templates, os_name, switch_ip):
     parsed_lldp = None
     os_template = os_templates.get(os_name)
 
-    logging.info(f"Getting connected devices info from {os_name} switch...")
+    logger.info(f"Getting connected devices info from {os_name} switch...")
     try:
         arp_cmd = os_template.get("arp_command")
         arp_template = f"config/custom_templates/{os_name}/{os_template.get('textfsm_templates').get('arp')}"
@@ -109,10 +112,10 @@ def get_device_data(ssh_session, os_templates, os_name, switch_ip):
             temp_file = io.StringIO(arp_file)
             arp_parse = textfsm.TextFSM(temp_file)
             parsed_arp = arp_parse.ParseTextToDicts(arp_output)
-            logging.info("Arp extraction successful!")
-            logging.debug(f"Arp data: {parsed_arp}")
+            logger.info("Arp extraction successful!")
+            logger.debug(f"Arp data: {parsed_arp}")
         except Exception as e:
-            logging.error(
+            logger.error(
                 f"Arp data not extracted(check arp textfsm template) reason: {e}"
             )
             raise Exception("arp extraction failed")
@@ -124,10 +127,10 @@ def get_device_data(ssh_session, os_templates, os_name, switch_ip):
             mac_file = io.StringIO(mac_template_file)
             mac_parse = textfsm.TextFSM(mac_file)
             parsed_mac = mac_parse.ParseTextToDicts(mac_output)
-            logging.info("Mac Table extraction successful!")
-            logging.debug(f"Mac Table: {parsed_mac}")
+            logger.info("Mac Table extraction successful!")
+            logger.debug(f"Mac Table: {parsed_mac}")
         except Exception as e:
-            logging.error(
+            logger.error(
                 f"mac table data not extracted(check mac table textfsm template) reason: {e}"
             )
             raise Exception("mac table extraction failed")
@@ -139,13 +142,13 @@ def get_device_data(ssh_session, os_templates, os_name, switch_ip):
             temp_file = io.StringIO(lldp_template)
             lldp_parse = textfsm.TextFSM(temp_file)
             parsed_lldp = lldp_parse.ParseTextToDicts(lldp_output)
-            logging.info("LLDP data extraction successful!")
-            logging.debug(f"LLDP data: {parsed_lldp}")
+            logger.info("LLDP data extraction successful!")
+            logger.debug(f"LLDP data: {parsed_lldp}")
         except Exception as e:
-            logging.warning(
+            logger.warning(
                 f"lldp data not extracted(check lldp textfsm template) reason: {e}"
             )
-            logging.warning(
+            logger.warning(
                 "Data will not be as accurate without lldp data as it will have to assume all connected devices are unknown endpoints"
             )
 
@@ -154,16 +157,16 @@ def get_device_data(ssh_session, os_templates, os_name, switch_ip):
         if parsed_lldp:
             output["lldp"] = parsed_lldp
     except Exception as e:
-        logging.error(f"Could not collect data from templates. Reason: {e}")
+        logger.error(f"Could not collect data from templates. Reason: {e}")
 
     try:
         with open(f"output/{switch_ip}_raw_output.json", mode="w") as f:
             json.dump(output, f)
-            logging.info(
+            logger.info(
                 f"Connected devices collected succesfully! data saved to output/{switch_ip}_raw_output.json"
             )
     except Exception as e:
-        logging.warning(
+        logger.warning(
             f"Unable to create json make sure a folder named output is in project Reason: {e}"
         )
 

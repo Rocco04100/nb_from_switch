@@ -9,8 +9,10 @@ import parse
 import startup
 from collector import get_device_data, get_switch_data
 
+logger = logging.getLogger(__name__)
+
 configs = startup.initialize()
-logging.debug("configs")
+logger.debug(f"configs: {configs}")
 args = configs.get("args", "")
 os_templates = configs.get("os_templates", "")
 switch_list = configs.get("switch_list", "")
@@ -20,11 +22,24 @@ switch_user = configs.get("creds", "").get("switch_user", "")
 switch_password = configs.get("creds", "").get("switch_password", "")
 
 
-logging.debug(f"ARGS DETECTED: {args}")
-logging.info("Loop start")
+logger.debug(f"ARGS DETECTED: {args}")
 
+# set up netbox connection outside of loop so we only need one for all switches
+if args.dry:
+    logger.info(
+        "Dry run detected - data will not be uploaded to netbox check outputs/ for results"
+    )
+    nb = None
+else:
+    logger.info("Connecting to nb api via pynetbox...")
+    nb = pynetbox.api(
+        netbox_url,
+        token=netbox_token,
+    )
+
+logger.info("-----------------------MAIN LOOP START-----------------------")
 for switch in switch_list:
-    logging.debug(f"The switch: {switch}")
+    logger.debug(f"The switch: {switch}")
     ip_address = switch["ip_address"]
     connection_params = {
         "device_type": "generic",
@@ -40,7 +55,7 @@ for switch in switch_list:
         """
         SWITCH CONNECTION -> GATHER AND CLEAN UP
         """
-        logging.info(f"Connecting to {connection_params['host']}...")
+        logger.info(f"Connecting to {connection_params['host']}...")
         net_connect = ConnectHandler(**connection_params)
 
         switch_data = {}
@@ -58,25 +73,15 @@ for switch in switch_list:
 
         if net_connect:
             net_connect.disconnect()
-            logging.info("SSH connection closed.")
+            logger.info("SSH connection closed.")
 
         """
         NETBOX CONNECTION -> CALL nbapi FUNCTIONS
         """
-        if args.dry:
-            logging.info(
-                "Dry run detected - data not uploaded to netbox check outputs for results"
-            )
-        else:
-            logging.info("Connecting to nb api via pynetbox...")
-            nb = pynetbox.api(
-                netbox_url,
-                token=netbox_token,
-            )
-            switch_device = None
-            if local_switch:
-                switch_device = nbapi.post_switch(nb, local_switch)
-                nbapi.post_connected_devices(nb, connected_devices, switch_device)
+        switch_device = None
+        if local_switch and nb:
+            switch_device = nbapi.post_switch(nb, local_switch)
+            nbapi.post_connected_devices(nb, connected_devices, switch_device)
     except Exception as e:
-        logging.error(f"Unhandled error:{e}")
-logging.info("Loop end")
+        logger.error(f"Unhandled error:{e}")
+logger.info("-----------------------MAIN LOOP END-----------------------")

@@ -1,10 +1,11 @@
 import ipaddress
 import logging
-import traceback
 
 import pynetbox
 
 import nb_utils
+
+logger = logging.getLogger(__name__)
 
 
 def get_or_create_manufacturer(nb, name):
@@ -23,14 +24,18 @@ def get_or_create_manufacturer(nb, name):
 
 
 def get_or_create_device_type(nb, model, manufacturer_name="Generic"):
-    device_type = nb.dcim.device_types.get(model=model)
-    if device_type:
-        return device_type
-
-    logging.info(f"Device type '{model}' not found in NetBox. Creating it...")
     manufacturer = get_or_create_manufacturer(nb, manufacturer_name)
     if not manufacturer:
         return None
+
+    device_type = nb.dcim.device_types.get(
+        model=model,
+        manufacturer_id=manufacturer.id,
+    )
+    if device_type:
+        return device_type
+
+    logger.info(f"Device type '{model}' not found in NetBox. Creating it...")
 
     slug = model.lower().replace(" ", "-")
     try:
@@ -38,7 +43,7 @@ def get_or_create_device_type(nb, model, manufacturer_name="Generic"):
             model=model, slug=slug, manufacturer=manufacturer.id
         )
     except Exception as e:
-        logging.error(f"Could not create device type '{model}': {e}")
+        logger.error(f"Could not create device type '{model}': {e}")
         return None
 
 
@@ -47,42 +52,89 @@ def get_or_create_role(nb, name):
     if role:
         return role
 
-    logging.info(f"Device role '{name}' not found in NetBox. Creating it...")
+    logger.info(f"Device role '{name}' not found in NetBox. Creating it...")
     slug = name.lower().replace(" ", "-")
     try:
         return nb.dcim.device_roles.create(name=name, slug=slug, color="9e9e9e")
     except Exception as e:
-        logging.error(f"Could not create device role '{name}': {e}")
+        logger.error(f"Could not create device role '{name}': {e}")
         return None
 
 
 def resolve_relations(nb, devicedict):
     """
-    Resolves nested lookup dicts (device_type, role) into real NetBox IDs,
-    creating the referenced object if it doesn't exist yet.
-    Mutates and returns devicedict, or None if a required relation couldn't be resolved.
+    Resolve human-readable relation dictionaries into NetBox object IDs.
+
+    Returns the resolved payload, or None when a required relation cannot
+    be resolved.
     """
-    device_type_info = devicedict.get("device_type")
+    payload = dict(devicedict)
+
+    # Manufacturer belongs to DeviceType, not Device.
+    manufacturer_info = payload.pop("manufacturer", None)
+    manufacturer_name = "Generic"
+    if isinstance(manufacturer_info, dict):
+        manufacturer_name = manufacturer_info.get("name") or "Generic"
+
+    device_type_info = payload.get("device_type")
     if isinstance(device_type_info, dict):
         model = device_type_info.get("model")
-        manufacturer_name = devicedict.get("manufacturer", {"name": "Generic"}).get(
-            "name", "Generic"
-        )
-        device_type = nb.dcim.device_types.get(
-            model=model, manufacturer__name=manufacturer_name
-        )
+        if not model:
+            logger.error("Cannot upload device: device type model is missing")
+            return None
+        try:
+            device_type = nb.dcim.device_types.get(
+                model=model,
+                manufacturer__name=manufacturer_name,
+            )
+        except Exception as e:
+            device_type = None
+            logger.error("Device Type not found")
+
         if not device_type:
-            return None
-        devicedict["device_type"] = {"model": device_type.model}
+            device_type = get_or_create_device_type(
+                nb,
+                model,
+                manufacturer_name,
+            )
 
-    role_info = devicedict.get("role")
+        if not device_type:
+            logger.error(
+                f"Cannot upload device: could not resolve device type "
+                f"'{manufacturer_name} {model}'"
+            )
+            return None
+
+        payload["device_type"] = device_type.id
+
+    role_info = payload.get("role")
     if isinstance(role_info, dict):
-        role = get_or_create_role(nb, role_info.get("name"))
-        if not role:
+        role_name = role_info.get("name")
+        if not role_name:
+            logger.error("Cannot upload device: role name is missing")
             return None
-        devicedict["role"] = {"name": role.name}
 
-    return devicedict
+        role = get_or_create_role(nb, role_name)
+        if not role:
+            logger.error(f"Cannot upload device: could not resolve role '{role_name}'")
+            return None
+
+        payload["role"] = role.id
+
+    site_info = payload.get("site")
+    if isinstance(site_info, dict):
+        site_name = site_info.get("name")
+        site = nb.dcim.sites.get(name=site_name) if site_name else None
+
+        if not site:
+            logger.error(
+                f"Cannot upload device: NetBox site '{site_name}' does not exist"
+            )
+            return None
+
+        payload["site"] = site.id
+
+    return payload
 
 
 def post_device(nb, devicedict):
@@ -91,19 +143,19 @@ def post_device(nb, devicedict):
     Used for both the local switch and each discovered connected device.
     """
     try:
-        # 1. Look up by name
-        search_results = nb.dcim.devices.filter(name=devicedict["name"])
+        # 1. Look up by MAC address first
+        search_results = nb.dcim.devices.filter(devicedict["cf_mac_address"])
         results_list = list(search_results)
 
-        # 2. FIX: Look up by MAC address with a keyword argument
+        # 2. Look up by Name if MAC address not found
         if not results_list and devicedict.get("cf_mac_address"):
-            search_results = nb.dcim.devices.filter(devicedict["cf_mac_address"])
+            search_results = nb.dcim.devices.filter(name=devicedict["name"])
             results_list = list(search_results)
 
         existing_device = results_list[0] if results_list else None
 
         if existing_device:
-            logging.info(
+            logger.info(
                 f"'{devicedict['name']}' already exists as {getattr(existing_device, 'name', None)}. Checking differences..."
             )
 
@@ -126,8 +178,6 @@ def post_device(nb, devicedict):
                 else:
                     server_attr = getattr(existing_device, key, None)
 
-                server_attr = getattr(existing_device, key, None)
-
                 # Standardize values using your helper function
                 local_name = get_relation_name(local_value)
                 server_name = get_relation_name(server_attr)
@@ -144,12 +194,12 @@ def post_device(nb, devicedict):
                     x in str(local_name).lower()
                     for x in ("unknown", "discovered", "endpoint")
                 ):
-                    logging.info(
+                    logger.info(
                         f"Mismatch found in '{key}' but server is better ('{server_name}' vs '{local_name}')"
                     )
                     continue
 
-                logging.info(
+                logger.info(
                     f"Mismatch found in '{key}': Local is '{local_name}', Server is '{server_name}'"
                 )
 
@@ -157,29 +207,30 @@ def post_device(nb, devicedict):
                 changes_to_apply[key] = local_value
 
             if changes_to_apply:
-                logging.debug(f"Before save name: {existing_device.name}")
+                logger.debug(f"Before save name: {existing_device.name}")
 
                 # FIX: Use .update() which guarantees pynetbox serializes and fires a PATCH request
                 resolved_changes = resolve_relations(nb, changes_to_apply)
                 existing_device.update(resolved_changes)
 
-                logging.info("Updated successfully!")
+                logger.info("Updated successfully!")
 
                 # Verify change
                 fresh = nb.dcim.devices.get(existing_device.id)
-                logging.debug(f"NetBox says name is now: {fresh.name}")
+                logger.debug(f"NetBox says name is now: {fresh.name}")
             else:
-                logging.info("Everything matches! No update needed")
+                logger.info("Everything matches! No update needed")
             return existing_device
 
         # Create new device if none found
+        logger.debug(f"Creating new device: {devicedict['name']}")
         resolved_devices = resolve_relations(nb, devicedict)
         device = nb.dcim.devices.create(resolved_devices)
-        logging.info(f"'{devicedict['name']}' successfully uploaded to nb!")
+        logger.info(f"'{devicedict['name']}' successfully uploaded to nb!")
         return device
 
     except Exception as e:
-        logging.exception(f"Could not post device: {e}")
+        logger.exception(f"Could not post device: {e}")
     return None
 
 
@@ -187,12 +238,12 @@ def post_switch(nb, switchdict):
     ports_list = switchdict.pop("_ports")
     switch_posted = post_device(nb, switchdict)
     if switch_posted:
-        logging.info("Getting or creating switch interfaces...")
+        logger.info("Getting or creating switch interfaces...")
         for port in ports_list:
             get_or_create_interface(nb, switch_posted, port["PORT"], port["TYPE"])
-        logging.info("Interfaces checked/created!")
+        logger.info("Interfaces checked/created!")
         return switch_posted
-    logging.debug("Switch not posted not checking interfaces returning none")
+    logger.debug("Switch not posted not checking interfaces returning none")
     return None
 
 
@@ -223,27 +274,27 @@ def post_connected_devices(nb, devices, switch_device):
             set_primary_ip(nb_device, ip_record)
 
     succeeded = sum(1 for r in results if r)
-    logging.info(
+    logger.info(
         f"Connected devices upload complete: {succeeded}/{len(devices)} succeeded"
     )
     return results
 
 
 def get_or_create_interface(nb, device, name, iface_type="other"):
-    logging.debug(f"Checking if we need to create, {name} on {device}...")
+    logger.debug(f"Checking if we need to create, {name} on {device}...")
     if not device or not name:
         return None
 
     interface = nb.dcim.interfaces.get(device_id=device.id, name=name)
     if interface:
-        logging.debug("Interface found! No need to create")
+        logger.debug("Interface found! No need to create")
         return interface
 
-    logging.debug(f"Interface '{name}' not found on '{device.name}'. Creating it...")
+    logger.debug(f"Interface '{name}' not found on '{device.name}'. Creating it...")
     try:
         return nb.dcim.interfaces.create(device=device.id, name=name, type=iface_type)
     except Exception as e:
-        logging.error(f"Could not create interface '{name}' on '{device.name}': {e}")
+        logger.error(f"Could not create interface '{name}' on '{device.name}': {e}")
         return None
 
 
@@ -252,13 +303,13 @@ def get_or_create_cable(nb, interface_a, interface_b):
         return None
 
     if getattr(interface_a, "cable", None) or getattr(interface_b, "cable", None):
-        logging.debug(
+        logger.debug(
             f"'{interface_a.device.name}:{interface_a.name}' or "
             f"'{interface_b.device.name}:{interface_b.name}' already cabled, skipping"
         )
         return None
 
-    logging.info(
+    logger.info(
         f"Creating cable: {interface_a.device.name}:{interface_a.name} <-> "
         f"{interface_b.device.name}:{interface_b.name}"
     )
@@ -272,20 +323,20 @@ def get_or_create_cable(nb, interface_a, interface_b):
             ],
         )
     except Exception as e:
-        logging.error(f"Could not create cable: {e}")
+        logger.error(f"Could not create cable: {e}")
         return None
 
 
 def get_or_create_ip_address(nb, address, interface):
 
     if not address:
-        logging.warning(
+        logger.warning(
             "Connected device has no discovered IP address; skipping IP upload"
         )
         return None
 
     if not interface:
-        logging.warning(
+        logger.warning(
             f"Could not assign discovered IP '{address}': device interface is missing"
         )
         return None
@@ -301,7 +352,7 @@ def get_or_create_ip_address(nb, address, interface):
 
         normalized_address = str(ipaddress.ip_interface(raw_address))
     except ValueError:
-        logging.error(f"Invalid IP address discovered: '{address}'")
+        logger.error(f"Invalid IP address discovered: '{address}'")
         return None
 
     try:
@@ -312,7 +363,7 @@ def get_or_create_ip_address(nb, address, interface):
             assigned_object = getattr(existing_ip, "assigned_object", None)
 
             if assigned_object and assigned_object.id != interface.id:
-                logging.warning(
+                logger.warning(
                     f"IP '{normalized_address}' is already assigned to another "
                     "NetBox object; not moving it"
                 )
@@ -322,7 +373,7 @@ def get_or_create_ip_address(nb, address, interface):
                 existing_ip.assigned_object_type = "dcim.interface"
                 existing_ip.assigned_object_id = interface.id
                 existing_ip.save()
-                logging.info(
+                logger.info(
                     f"Assigned existing IP '{normalized_address}' to "
                     f"'{interface.device.name}:{interface.name}'"
                 )
@@ -335,19 +386,19 @@ def get_or_create_ip_address(nb, address, interface):
             assigned_object_type="dcim.interface",
             assigned_object_id=interface.id,
         )
-        logging.info(
+        logger.info(
             f"Created IP '{normalized_address}' on "
             f"'{interface.device.name}:{interface.name}'"
         )
         return ip_record
 
     except Exception as e:
-        logging.error(f"Could not create or assign IP '{normalized_address}': {e}")
+        logger.error(f"Could not create or assign IP '{normalized_address}': {e}")
         return None
 
 
 def set_primary_ip(device, ip_record):
-    logging.debug(f"setting {ip_record} as primary IP for {device.name}")
+    logger.debug(f"setting {ip_record} as primary IP for {device.name}")
     if not device or not ip_record:
         return False
 
@@ -362,13 +413,11 @@ def set_primary_ip(device, ip_record):
         setattr(device, primary_field, ip_record.id)
         device.save()
 
-        logging.info(
-            f"Set '{ip_record.address}' as {primary_field} for '{device.name}'"
-        )
+        logger.info(f"Set '{ip_record.address}' as {primary_field} for '{device.name}'")
         return True
 
     except Exception as e:
-        logging.error(f"Could not set primary IP for '{device.name}': {e}")
+        logger.error(f"Could not set primary IP for '{device.name}': {e}")
         return False
 
 
@@ -397,19 +446,21 @@ def update_device_type_manufacturer(nb, device, manufacturer_name):
     if not device.device_type:
         return False
 
-    manufacturer = get_or_create_manufacturer(nb, manufacturer_name)
-    if not manufacturer:
+    if device.device_type.manufacturer.name == manufacturer_name:
         return False
 
-    if device.device_type.manufacturer.id == manufacturer.id:
+    correct_device_type = get_or_create_device_type(
+        nb, device.device_type.model, manufacturer_name
+    )
+    if not correct_device_type:
         return False
 
-    logging.info(
-        f"Updating manufacturer for '{device.name}' "
-        f"from '{device.device_type.manufacturer.name}' "
-        f"to '{manufacturer.name}'"
+    logger.info(
+        f"Reassigning '{device.name}' from device type "
+        f"'{device.device_type.manufacturer.name} {device.device_type.model}' "
+        f"to '{manufacturer_name} {correct_device_type.model}'"
     )
 
-    device.device_type.update({"manufacturer": manufacturer.id})
+    device.update({"device_type": correct_device_type.id})
 
     return True

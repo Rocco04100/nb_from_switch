@@ -1,6 +1,9 @@
 import logging
 import re
 
+logger = logging.getLogger(__name__)
+
+
 """
 FOR GLOBAL LOOKUP UTILS
 """
@@ -66,10 +69,10 @@ site_table = {
 
 
 def get_site(ip_address):
-    if ip_address:
-        return site_table[f"{'.'.join(ip_address.split('.')[:2])}"]
-    else:
-        logging.error("Site not found in site table unable to add device")
+    site = site_table.get(f"{'.'.join(ip_address.split('.')[:2])}", "")
+    if site:
+        return site
+    logger.error("Site not found in site table unable to add device")
     return None
 
 
