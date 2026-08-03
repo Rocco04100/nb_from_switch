@@ -12,7 +12,7 @@ from collector import get_device_data, get_switch_data
 logger = logging.getLogger(__name__)
 
 configs = startup.initialize()
-logger.debug(f"configs: {configs}")
+logger.debug(f"configs loaded")
 args = configs.get("args", "")
 os_templates = configs.get("os_templates", "")
 switch_list = configs.get("switch_list", "")

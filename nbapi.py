@@ -299,32 +299,67 @@ def get_or_create_interface(nb, device, name, iface_type="other"):
 
 
 def get_or_create_cable(nb, interface_a, interface_b):
+    logger.debug(
+        f"Checking if we need to create cable: {interface_a} <-> {interface_b}"
+    )
+
     if not interface_a or not interface_b:
         return None
 
-    if getattr(interface_a, "cable", None) or getattr(interface_b, "cable", None):
-        logger.debug(
-            f"'{interface_a.device.name}:{interface_a.name}' or "
-            f"'{interface_b.device.name}:{interface_b.name}' already cabled, skipping"
-        )
-        return None
+    interface_a.full_details()
+    # logger.debug(interface_a.__dict__)
+    interface_b.full_details()
+    # logger.debug(interface_b.__dict__)
 
-    logger.info(
-        f"Creating cable: {interface_a.device.name}:{interface_a.name} <-> "
-        f"{interface_b.device.name}:{interface_b.name}"
-    )
-    try:
+    existing = interface_a.cable or interface_b.cable
+
+    if existing:
+        logger.debug(f"Existing cable located: {existing}")
+        cable = nb.dcim.cables.get(existing.id)
+
+        terminations = cable.a_terminations + cable.b_terminations
+
+        connected_ids = [
+            t.object_id for t in terminations if t.object_id != interface_a.id
+        ]
+
+        if connected_ids and connected_ids[0] == interface_b.id:
+            logger.debug("Cable already correct")
+            return cable
+
+        logger.info(f"Replacing cable on {interface_a.device.name}:{interface_a.name}")
+        cable.delete()
+
         return nb.dcim.cables.create(
             a_terminations=[
-                {"object_type": "dcim.interface", "object_id": interface_a.id}
+                {
+                    "object_type": "dcim.interface",
+                    "object_id": interface_a.id,
+                }
             ],
             b_terminations=[
-                {"object_type": "dcim.interface", "object_id": interface_b.id}
+                {
+                    "object_type": "dcim.interface",
+                    "object_id": interface_b.id,
+                }
             ],
         )
-    except Exception as e:
-        logger.error(f"Could not create cable: {e}")
-        return None
+    else:
+        logger.debug(f"No existing cable found; creating new one")
+        return nb.dcim.cables.create(
+            a_terminations=[
+                {
+                    "object_type": "dcim.interface",
+                    "object_id": interface_a.id,
+                }
+            ],
+            b_terminations=[
+                {
+                    "object_type": "dcim.interface",
+                    "object_id": interface_b.id,
+                }
+            ],
+        )
 
 
 def get_or_create_ip_address(nb, address, interface):
