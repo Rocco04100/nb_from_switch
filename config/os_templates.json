@@ -6,7 +6,7 @@
     "ports_command": "show interfaces status",
     "arp_command": "show ip arp",
     "mac_command": "show mac address-table",
-    "lldp_command": "show lldp neighbors details",
+    "lldp_command": "show lldp neighbors detail",
     "textfsm_templates": {
       "version": "cisco_version.textfsm",
       "ports": "cisco_interface.textfsm",

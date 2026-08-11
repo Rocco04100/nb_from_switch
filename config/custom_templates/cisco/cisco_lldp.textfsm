@@ -1,13 +1,10 @@
+Value CHASSIS_ID (\S+)
+Value REMOTE_PORT (\S+)
 Value HOSTNAME (.+)
-Value REMOTE_PORT (.+)
 Value ENABLED_CAPABILITIES (.+)
 
 Start
-  ^Chassis id: -> Neighbor
-
-Neighbor
+  ^Chassis id:\s+${CHASSIS_ID}
   ^Port id:\s+${REMOTE_PORT}
   ^System Name:\s+${HOSTNAME}
-  ^Enabled Capabilities\s+-\s+${ENABLED_CAPABILITIES}
-  ^Total entries displayed: -> Record
-  ^$$ -> Record
+  ^Enabled Capabilities\s*-\s*${ENABLED_CAPABILITIES} -> Record

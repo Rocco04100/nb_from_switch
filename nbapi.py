@@ -307,28 +307,56 @@ def get_or_create_cable(nb, interface_a, interface_b):
         return None
 
     interface_a.full_details()
-    # logger.debug(interface_a.__dict__)
     interface_b.full_details()
-    # logger.debug(interface_b.__dict__)
 
     existing = interface_a.cable or interface_b.cable
 
+    logger.debug(
+        f"A cable: {getattr(interface_a.cable, 'id', None)}, "
+        f"B cable: {getattr(interface_b.cable, 'id', None)}"
+    )
+
     if existing:
-        logger.debug(f"Existing cable located: {existing}")
-        cable = nb.dcim.cables.get(existing.id)
+        logger.debug("Checking existing cable(s)...")
 
-        terminations = cable.a_terminations + cable.b_terminations
+        # Refresh interfaces from NetBox
+        interface_a = nb.dcim.interfaces.get(interface_a.id)
+        interface_b = nb.dcim.interfaces.get(interface_b.id)
 
-        connected_ids = [
-            t.object_id for t in terminations if t.object_id != interface_a.id
-        ]
-
-        if connected_ids and connected_ids[0] == interface_b.id:
+        # If they're already connected together, do nothing
+        if (
+            interface_a.cable
+            and interface_b.cable
+            and interface_a.cable.id == interface_b.cable.id
+        ):
             logger.debug("Cable already correct")
-            return cable
+            return nb.dcim.cables.get(interface_a.cable.id)
 
-        logger.info(f"Replacing cable on {interface_a.device.name}:{interface_a.name}")
-        cable.delete()
+        # Remove cable from interface A
+        if interface_a.cable:
+            logger.info(
+                f"Removing cable {interface_a.cable.id} from "
+                f"{interface_a.device.name}:{interface_a.name}"
+            )
+            nb.dcim.cables.get(interface_a.cable.id).delete()
+
+        # Refresh A after delete
+        interface_a = nb.dcim.interfaces.get(interface_a.id)
+
+        # Remove cable from interface B
+        interface_b = nb.dcim.interfaces.get(interface_b.id)
+        if interface_b.cable:
+            logger.info(
+                f"Removing cable {interface_b.cable.id} from "
+                f"{interface_b.device.name}:{interface_b.name}"
+            )
+            nb.dcim.cables.get(interface_b.cable.id).delete()
+
+        # Refresh both interfaces again
+        interface_a = nb.dcim.interfaces.get(interface_a.id)
+        interface_b = nb.dcim.interfaces.get(interface_b.id)
+
+        logger.info("Creating replacement cable")
 
         return nb.dcim.cables.create(
             a_terminations=[

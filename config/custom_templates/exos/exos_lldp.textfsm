@@ -1,14 +1,10 @@
-Value Required LOCAL_PORT (\d+)
+Value CHASSIS_ID (\S+)
+Value REMOTE_PORT ([^"]+)
 Value HOSTNAME ([^"]+)
-Value REMOTE_PORT ([^"]+|[0-9A-Fa-f:]+)
-Value ENABLED_CAPABILITIES ([^"]+)
+Value ENABLED_CAPABILITIES (.+)
 
 Start
-  ^LLDP Port ${LOCAL_PORT} detected -> LLDP
-
-LLDP
-  ^\s+- System Name:\s+"${HOSTNAME}" -> Continue
-  ^\s+Port ID\s+:\s+"?${REMOTE_PORT}"? -> Continue
-  ^\s+Enabled Capabilities:\s+"${ENABLED_CAPABILITIES}" -> Continue
-  ^LLDP Port -> Record LLDP
-  ^$$ -> Record
+  ^\s*Chassis ID\s*:\s*${CHASSIS_ID}
+  ^\s*Port ID\s*:\s*"${REMOTE_PORT}"
+  ^\s*-\s*System Name:\s*"${HOSTNAME}"
+  ^\s*Enabled Capabilities\s*:\s*"${ENABLED_CAPABILITIES}" -> Record

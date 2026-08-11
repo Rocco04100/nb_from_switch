@@ -114,19 +114,25 @@ def setup_args():
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         type=str.upper,
-        help="Set the level of logs you see the higher the level the less logs you see(debug shows all)",
+        help="Set the level of logs you see the higher the level the less logs you see(debug shows all)\n",
     )
     parser.add_argument(
         "-d",
         "--dry",
         action="store_true",
-        help="Will not post to netbox check output file json's for what would be posted",
+        help="Will not post to netbox check output file json's for what would be posted\n",
     )
     parser.add_argument(
         "-t",
         "--test",
         action="store_true",
-        help="Will upload to netbox site 'Test Site Beta' good for checking what will be uploaded to netbox",
+        help="Will upload to netbox site 'Test Site Beta' good for checking before adding to a site WARNING: It will still overide device data in netbox if it is found use -d to dry run with no netbox upload",
+    )
+    parser.add_argument(
+        "-c",
+        "--connected",
+        action="store_true",
+        help="Will attempt to upload connected devices WARNING: It will overwrite current cables in netbox be and will choose a random mac that has gone on a trunk port to be connected",
     )
     args = parser.parse_args()
     return args

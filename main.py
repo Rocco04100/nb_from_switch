@@ -81,7 +81,9 @@ for switch in switch_list:
         switch_device = None
         if local_switch and nb:
             switch_device = nbapi.post_switch(nb, local_switch)
-            nbapi.post_connected_devices(nb, connected_devices, switch_device)
+            if args.connected:
+                logger.warning("ATTEMPTING EXPEREMENTAL CONNECTED DEVICE UPLOAD")
+                nbapi.post_connected_devices(nb, connected_devices, switch_device)
     except Exception as e:
         logger.error(f"Unhandled error:{e}")
 logger.info("-----------------------MAIN LOOP END-----------------------")
