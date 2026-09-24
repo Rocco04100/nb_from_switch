@@ -12,7 +12,7 @@ Right now it is unable to consider multiple macs from one port like trunk ports 
 
 # How to run on your device
 
-1. dowload the python packages used by running pip install -r requirements.txt in your python environment
+1. download the python packages used by running pip install -r requirements.txt in your python environment
 2. create output folder(used to show outputs when not uploading to netbox)
 3. create your config folder
 4. create custom_templates folder in config that contains folders of text_fsm templates there are examples, but typically throwing the output of a command into AI and asking for a textfsm template with the correct values works perfectly
