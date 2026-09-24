@@ -1,3 +1,7 @@
+# INFO
+
+This has been untested for some time and I have made changes. My internship has ended and I no longer have access to enterprise switches to mess around on so I am unable to fully stress test.
+
 # What it does
 
 - It will loop through ip's in switches.csv and establish a ssh connection(currently hardcoded user and pass for test environment)
@@ -8,7 +12,7 @@
 
 # IMPORTANT
 
-Right now it is unable to consider multiple macs from one port like trunk ports so by default it will only focus on uploading the switch data and you can review the connected device data, and upload it manually via json if you choose. There is an option to try the not working connected device upload but it porbably won't work
+Right now it is unable to consider multiple macs from one port like trunk ports so by default it will only focus on uploading the switch data and you can review the connected device data, and upload it manually via json if you choose. There is an option to try the not working connected device upload but it probably won't work. My internship has ended and I no longer have access to enterprise switches to mess around on
 
 # How to run on your device
 
